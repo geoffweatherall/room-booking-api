@@ -8,9 +8,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import module java.base;
 
 /** AppSync direct-Lambda resolver for {@code Query.rooms}. */
 public class ListRoomsHandler implements RequestHandler<Map<String, Object>, Object> {
@@ -30,10 +28,9 @@ public class ListRoomsHandler implements RequestHandler<Map<String, Object>, Obj
     @Override
     public Object handleRequest(final Map<String, Object> event, final Context context) {
         final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(tableName).build());
-        final List<Map<String, Object>> rooms = response.items().stream()
+        return response.items().stream()
                 .map(Room::fromItem)
                 .map(Room::toResponseMap)
-                .collect(Collectors.toList());
-        return rooms;
+                .toList();
     }
 }

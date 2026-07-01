@@ -15,7 +15,7 @@ resource "aws_lambda_function" "list_rooms" {
   function_name    = "${var.project_name}-list-rooms"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ListRoomsHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512
@@ -30,7 +30,7 @@ resource "aws_lambda_function" "list_people" {
   function_name    = "${var.project_name}-list-people"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ListPeopleHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512
@@ -45,7 +45,7 @@ resource "aws_lambda_function" "create_room" {
   function_name    = "${var.project_name}-create-room"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.CreateRoomHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512
@@ -60,7 +60,7 @@ resource "aws_lambda_function" "create_person" {
   function_name    = "${var.project_name}-create-person"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.CreatePersonHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512
@@ -75,7 +75,7 @@ resource "aws_lambda_function" "list_bookings" {
   function_name    = "${var.project_name}-list-bookings"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ListBookingsHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512
@@ -90,7 +90,7 @@ resource "aws_lambda_function" "create_booking" {
   function_name    = "${var.project_name}-create-booking"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.CreateBookingHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512
@@ -105,7 +105,7 @@ resource "aws_lambda_function" "reset" {
   function_name    = "${var.project_name}-reset"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ResetHandler::handleRequest"
-  runtime          = "java21"
+  runtime          = "java25"
   filename         = local.lambda_jar_path
   source_code_hash = local.lambda_jar_hash
   memory_size      = 512

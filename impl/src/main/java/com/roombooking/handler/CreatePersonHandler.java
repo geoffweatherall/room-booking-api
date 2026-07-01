@@ -7,8 +7,7 @@ import com.roombooking.model.Person;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
-import java.util.Map;
-import java.util.UUID;
+import module java.base;
 
 /** AppSync direct-Lambda resolver for {@code Mutation.createPerson}. */
 public class CreatePersonHandler implements RequestHandler<Map<String, Object>, Object> {

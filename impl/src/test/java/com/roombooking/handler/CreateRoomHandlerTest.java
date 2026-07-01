@@ -3,8 +3,7 @@ package com.roombooking.handler;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
-import java.util.Map;
+import module java.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -32,9 +31,9 @@ class CreateRoomHandlerTest {
         assertEquals(8, result.get("capacity"));
         assertEquals(1, fakeClient.tables.get("Rooms").size());
 
-        final Room persisted = Room.fromItem(fakeClient.tables.get("Rooms").get(0));
-        assertEquals(result.get("id"), persisted.getId());
-        assertEquals("Conference A", persisted.getName());
-        assertEquals(8, persisted.getCapacity());
+        final Room persisted = Room.fromItem(fakeClient.tables.get("Rooms").getFirst());
+        assertEquals(result.get("id"), persisted.id());
+        assertEquals("Conference A", persisted.name());
+        assertEquals(8, persisted.capacity());
     }
 }

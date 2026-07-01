@@ -7,9 +7,7 @@ import com.roombooking.model.Room;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import module java.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -122,7 +120,7 @@ class CreateBookingHandlerTest {
         final Booking existing = new Booking("existing-booking", new Room("room-1", "Conference A", 3),
                 new Person("organiser-1", "Ada Lovelace"), List.of(),
                 "2026-07-01T14:00:00", "2026-07-01T14:30:00");
-        fakeClient.tables.put("Bookings", new java.util.ArrayList<>(List.of(existing.toItem())));
+        fakeClient.tables.put("Bookings", new ArrayList<>(List.of(existing.toItem())));
 
         final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"),
                 "2026-07-01T14:30:00", "2026-07-01T15:00:00");

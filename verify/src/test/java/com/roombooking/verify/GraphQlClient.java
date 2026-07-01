@@ -3,12 +3,8 @@ package com.roombooking.verify;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.util.Map;
+import module java.base;
+import module java.net.http;
 
 /** Minimal HTTP client for executing GraphQL operations against the deployed AppSync API. */
 class GraphQlClient {

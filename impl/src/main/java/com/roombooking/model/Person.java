@@ -2,26 +2,9 @@ package com.roombooking.model;
 
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-import java.util.HashMap;
-import java.util.Map;
+import module java.base;
 
-public class Person {
-
-    private final String id;
-    private final String name;
-
-    public Person(final String id, final String name) {
-        this.id = id;
-        this.name = name;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
+public record Person(String id, String name) {
 
     public Map<String, AttributeValue> toItem() {
         final Map<String, AttributeValue> item = new HashMap<>();

@@ -15,13 +15,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import module java.base;
 
 /**
  * AppSync direct-Lambda resolver for {@code Mutation.createBooking}.
@@ -88,7 +82,7 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
 
         if (room != null) {
             final int requiredCapacity = 1 + attendeeIds.size();
-            if (room.getCapacity() < requiredCapacity) {
+            if (room.capacity() < requiredCapacity) {
                 errors.add(BookingError.InsufficientCapacity.name());
             }
         }
@@ -123,7 +117,7 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
         final LocalDateTime dateTime;
         try {
             dateTime = LocalDateTime.parse(text);
-        } catch (final DateTimeParseException e) {
+        } catch (final DateTimeParseException _) {
             errors.add(error.name());
             return null;
         }
@@ -160,10 +154,10 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
         final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(bookingsTableName).build());
         return response.items().stream()
                 .map(Booking::fromItem)
-                .filter(existing -> existing.getRoom().getId().equals(roomId))
+                .filter(existing -> existing.room().id().equals(roomId))
                 .anyMatch(existing -> {
-                    final LocalDateTime existingStart = LocalDateTime.parse(existing.getStartTime());
-                    final LocalDateTime existingEnd = LocalDateTime.parse(existing.getEndTime());
+                    final LocalDateTime existingStart = LocalDateTime.parse(existing.startTime());
+                    final LocalDateTime existingEnd = LocalDateTime.parse(existing.endTime());
                     return startTime.isBefore(existingEnd) && endTime.isAfter(existingStart);
                 });
     }

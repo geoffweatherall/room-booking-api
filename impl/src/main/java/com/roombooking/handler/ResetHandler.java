@@ -9,7 +9,7 @@ import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
-import java.util.Map;
+import module java.base;
 
 /** AppSync direct-Lambda resolver for {@code Mutation.reset}. Deletes all stored rooms, people and bookings. */
 public class ResetHandler implements RequestHandler<Map<String, Object>, Object> {

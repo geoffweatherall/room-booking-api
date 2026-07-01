@@ -5,8 +5,7 @@ import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.Map;
+import module java.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,7 +30,7 @@ class ListBookingsHandlerTest {
         final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(Map.of(), null);
 
         assertEquals(1, result.size());
-        final Map<String, Object> resultBooking = result.get(0);
+        final Map<String, Object> resultBooking = result.getFirst();
         assertEquals("2026-07-01T14:30:00", resultBooking.get("startTime"));
         assertEquals("2026-07-01T15:00:00", resultBooking.get("endTime"));
 
@@ -46,7 +45,7 @@ class ListBookingsHandlerTest {
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> resultAttendees = (List<Map<String, Object>>) resultBooking.get("attendees");
         assertEquals(1, resultAttendees.size());
-        assertEquals("Alan Turing", resultAttendees.get(0).get("name"));
+        assertEquals("Alan Turing", resultAttendees.getFirst().get("name"));
     }
 
     @Test

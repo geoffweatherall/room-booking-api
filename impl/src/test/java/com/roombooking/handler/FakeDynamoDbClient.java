@@ -11,10 +11,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import module java.base;
 
 /** Minimal in-memory test double covering only the operations the handlers under test use. */
 class FakeDynamoDbClient implements DynamoDbClient {
@@ -32,7 +29,7 @@ class FakeDynamoDbClient implements DynamoDbClient {
 
     @Override
     public PutItemResponse putItem(final PutItemRequest request) {
-        tables.computeIfAbsent(request.tableName(), k -> new ArrayList<>()).add(request.item());
+        tables.computeIfAbsent(request.tableName(), _ -> new ArrayList<>()).add(request.item());
         return PutItemResponse.builder().build();
     }
 
