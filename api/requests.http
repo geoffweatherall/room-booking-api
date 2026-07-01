@@ -1,10 +1,12 @@
 ### Sample GraphQL calls against the deployed room-booking API.
-### Fill in the two variables below after `deploy/deploy.sh` has run:
-###   terraform -chdir=deploy/terraform output graphql_api_url
-###   terraform -chdir=deploy/terraform output -raw graphql_api_key
+### graphqlUrl/apiKey are read from the GRAPHQL_API_URL/GRAPHQL_API_KEY environment variables
+### (see api-authentic.sh in the project root: `source api-authentic.sh`).
+### NOTE: REST Client's $processEnv reads the environment of the VSCode process itself, not your
+### terminal - if VSCode was already running before you sourced api-authentic.sh, either restart
+### VSCode from that same shell, or launch `code .` from it so it inherits the exported variables.
 
-@graphqlUrl = https://dmici5zrszes7f6n5ikvwzf3pm.appsync-api.us-east-1.amazonaws.com/graphql
-@apiKey = da2-awybstxo2rhpfkmm2q2v53zchu
+@graphqlUrl = {{$processEnv GRAPHQL_API_URL}}
+@apiKey = {{$processEnv GRAPHQL_API_KEY}}
 
 ### List rooms
 POST {{graphqlUrl}}
@@ -12,7 +14,7 @@ Content-Type: application/json
 x-api-key: {{apiKey}}
 
 {
-  "query": "query { rooms { id name capacity } }"
+  "query": "query { rooms { id name capacity }  }"
 }
 
 ### List people
@@ -22,6 +24,15 @@ x-api-key: {{apiKey}}
 
 {
   "query": "query { people { id name } }"
+}
+
+### List bookings
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "query { bookings { id room { id name capacity } organiser { id name } attendees { id name } startTime endTime } }"
 }
 
 ### Create a room
@@ -47,3 +58,44 @@ x-api-key: {{apiKey}}
     "person": { "name": "Geoff Weatherall" }
   }
 }
+
+### Create a booking
+### Replace roomId/organiserId/attendeeIds below with real ids from the "List rooms" / "List people" requests above.
+### startTime/endTime must fall on a 5 minute boundary (e.g. :00, :05, :10, ...).
+### On failure, "errors" is a non-empty list of the broken rules and "booking" is null.
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "mutation CreateBooking($booking: BookingInput!) { createBooking(booking: $booking) { booking { id room { id name capacity } organiser { id name } attendees { id name } startTime endTime } errors } }",
+  "variables": {
+    "booking": {
+      "roomId": "9fa8b122-9476-439f-ae5c-e97256444891",
+      "organiserId": "4d4c933e-28c9-45ca-bf7c-a96f26cfa355",
+      "attendeeIds": ["78514c8d-ac39-4a8a-9f97-abeb66eba37f"],
+      "startTime": "2026-07-01T15:05:00",
+      "endTime": "2026-07-01T15:10:00"
+    }
+  }
+}
+
+### Reset (deletes ALL stored rooms, people and bookings)
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "mutation { reset }"
+}
+
+
+###
+###id": "4d4c933e-28c9-45ca-bf7c-a96f26cfa355",
+###        "name": "Geoff Weatherall"
+###        "id": "4a94fef3-f1a8-4d1c-8fc0-749b32a9870d",
+###        "name": "Test Attendee"
+###              "id": "78514c8d-ac39-4a8a-9f97-abeb66eba37f",
+####        "name": "Ada Lovelace"
+###        "id": "1a70c0bd-a354-4909-a192-826ba63353bf",
+###        "name": "Test Organiser"

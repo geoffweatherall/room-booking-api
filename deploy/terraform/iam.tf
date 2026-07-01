@@ -23,12 +23,14 @@ data "aws_iam_policy_document" "lambda_dynamodb_access" {
     actions = [
       "dynamodb:GetItem",
       "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
       "dynamodb:Scan",
       "dynamodb:Query",
     ]
     resources = [
       aws_dynamodb_table.rooms.arn,
       aws_dynamodb_table.people.arn,
+      aws_dynamodb_table.bookings.arn,
     ]
   }
 }
@@ -62,6 +64,9 @@ data "aws_iam_policy_document" "appsync_invoke_lambda" {
       aws_lambda_function.list_people.arn,
       aws_lambda_function.create_room.arn,
       aws_lambda_function.create_person.arn,
+      aws_lambda_function.list_bookings.arn,
+      aws_lambda_function.create_booking.arn,
+      aws_lambda_function.reset.arn,
     ]
   }
 }

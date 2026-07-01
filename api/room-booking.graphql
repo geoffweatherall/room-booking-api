@@ -6,11 +6,15 @@ schema {
 type Query {
  people: [Person!]!
  rooms: [Room!]!
+ bookings: [Booking!]!
 }
 
 type Mutation {
  createRoom(room: RoomInput!): Room!
  createPerson(person: PersonInput!): Person!
+ createBooking(booking: BookingInput!): CreateBookingResult!
+ "Deletes all stored rooms, people and bookings."
+ reset: Boolean!
 }
 
 type Room {
@@ -33,6 +37,44 @@ type Person {
 
 input PersonInput {
     name: String!
+}
+
+type Booking {
+    id: ID!
+    room: Room!
+    organiser: Person!
+    attendees: [Person!]!
+    "ISO-8601 local date-time with no time-zone offset (java.time.LocalDateTime semantics), e.g. \"2026-07-01T14:30:00\"."
+    startTime: String!
+    "ISO-8601 local date-time with no time-zone offset (java.time.LocalDateTime semantics), e.g. \"2026-07-01T15:00:00\"."
+    endTime: String!
+}
+
+input BookingInput {
+    roomId: ID!
+    organiserId: ID!
+    attendeeIds: [ID!]!
+    "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T14:30:00\"."
+    startTime: String!
+    "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T15:00:00\"."
+    endTime: String!
+}
+
+type CreateBookingResult {
+    "Populated when the booking passed all validation rules and was created."
+    booking: Booking
+    "Non-empty when the booking was rejected; one entry per validation rule broken."
+    errors: [BookingError!]!
+}
+
+enum BookingError {
+    StartMissaligned
+    EndMissaligned
+    InsufficientCapacity
+    TimeRangeUnavailable
+    RoomNotFound
+    OrganiserNotFound
+    AttendeeNotFound
 }
 
 

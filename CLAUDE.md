@@ -13,6 +13,8 @@ The directory `/api` contains the GraphQL schema for this API.
 
 The directory `/impl` contains a Maven java project that provides Java Lambda data sources used to implement the API.
 
-The directory `/deploy` contains a bash script `deploy.sh` that is used to deploy this API into AWS.
+The bash script `deploy.sh` in the project root is used to deploy this API into AWS.
 
 The directory `/deploy/terraform` contains the terraform files needed to create the AWS resources that implement this API.
+
+The directory `/verify` contains acceptance tests written in java using junit that verify the deployed system.  Run using verify.sh in the project root.

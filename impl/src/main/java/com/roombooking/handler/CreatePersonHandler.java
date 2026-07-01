@@ -20,18 +20,18 @@ public class CreatePersonHandler implements RequestHandler<Map<String, Object>, 
         this(DynamoDbClientProvider.client(), System.getenv().getOrDefault("PEOPLE_TABLE_NAME", "People"));
     }
 
-    CreatePersonHandler(DynamoDbClient dynamoDbClient, String tableName) {
+    CreatePersonHandler(final DynamoDbClient dynamoDbClient, final String tableName) {
         this.dynamoDbClient = dynamoDbClient;
         this.tableName = tableName;
     }
 
     @Override
-    public Object handleRequest(Map<String, Object> event, Context context) {
-        Map<String, Object> arguments = castToMap(event.get("arguments"));
-        Map<String, Object> personInput = castToMap(arguments.get("person"));
+    public Object handleRequest(final Map<String, Object> event, final Context context) {
+        final Map<String, Object> arguments = castToMap(event.get("arguments"));
+        final Map<String, Object> personInput = castToMap(arguments.get("person"));
 
-        String name = (String) personInput.get("name");
-        Person person = new Person(UUID.randomUUID().toString(), name);
+        final String name = (String) personInput.get("name");
+        final Person person = new Person(UUID.randomUUID().toString(), name);
 
         dynamoDbClient.putItem(PutItemRequest.builder()
                 .tableName(tableName)
@@ -42,7 +42,7 @@ public class CreatePersonHandler implements RequestHandler<Map<String, Object>, 
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> castToMap(Object value) {
+    private static Map<String, Object> castToMap(final Object value) {
         return (Map<String, Object>) value;
     }
 }

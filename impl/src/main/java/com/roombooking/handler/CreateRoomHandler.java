@@ -20,19 +20,19 @@ public class CreateRoomHandler implements RequestHandler<Map<String, Object>, Ob
         this(DynamoDbClientProvider.client(), System.getenv().getOrDefault("ROOMS_TABLE_NAME", "Rooms"));
     }
 
-    CreateRoomHandler(DynamoDbClient dynamoDbClient, String tableName) {
+    CreateRoomHandler(final DynamoDbClient dynamoDbClient, final String tableName) {
         this.dynamoDbClient = dynamoDbClient;
         this.tableName = tableName;
     }
 
     @Override
-    public Object handleRequest(Map<String, Object> event, Context context) {
-        Map<String, Object> arguments = castToMap(event.get("arguments"));
-        Map<String, Object> roomInput = castToMap(arguments.get("room"));
+    public Object handleRequest(final Map<String, Object> event, final Context context) {
+        final Map<String, Object> arguments = castToMap(event.get("arguments"));
+        final Map<String, Object> roomInput = castToMap(arguments.get("room"));
 
-        String name = (String) roomInput.get("name");
-        int capacity = ((Number) roomInput.get("capacity")).intValue();
-        Room room = new Room(UUID.randomUUID().toString(), name, capacity);
+        final String name = (String) roomInput.get("name");
+        final int capacity = ((Number) roomInput.get("capacity")).intValue();
+        final Room room = new Room(UUID.randomUUID().toString(), name, capacity);
 
         dynamoDbClient.putItem(PutItemRequest.builder()
                 .tableName(tableName)
@@ -43,7 +43,7 @@ public class CreateRoomHandler implements RequestHandler<Map<String, Object>, Ob
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> castToMap(Object value) {
+    private static Map<String, Object> castToMap(final Object value) {
         return (Map<String, Object>) value;
     }
 }

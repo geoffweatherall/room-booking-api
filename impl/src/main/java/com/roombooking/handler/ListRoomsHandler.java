@@ -22,15 +22,15 @@ public class ListRoomsHandler implements RequestHandler<Map<String, Object>, Obj
         this(DynamoDbClientProvider.client(), System.getenv().getOrDefault("ROOMS_TABLE_NAME", "Rooms"));
     }
 
-    ListRoomsHandler(DynamoDbClient dynamoDbClient, String tableName) {
+    ListRoomsHandler(final DynamoDbClient dynamoDbClient, final String tableName) {
         this.dynamoDbClient = dynamoDbClient;
         this.tableName = tableName;
     }
 
     @Override
-    public Object handleRequest(Map<String, Object> event, Context context) {
-        ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(tableName).build());
-        List<Map<String, Object>> rooms = response.items().stream()
+    public Object handleRequest(final Map<String, Object> event, final Context context) {
+        final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(tableName).build());
+        final List<Map<String, Object>> rooms = response.items().stream()
                 .map(Room::fromItem)
                 .map(Room::toResponseMap)
                 .collect(Collectors.toList());

@@ -10,7 +10,7 @@ public class Person {
     private final String id;
     private final String name;
 
-    public Person(String id, String name) {
+    public Person(final String id, final String name) {
         this.id = id;
         this.name = name;
     }
@@ -24,20 +24,20 @@ public class Person {
     }
 
     public Map<String, AttributeValue> toItem() {
-        Map<String, AttributeValue> item = new HashMap<>();
+        final Map<String, AttributeValue> item = new HashMap<>();
         item.put("id", AttributeValue.builder().s(id).build());
         item.put("name", AttributeValue.builder().s(name).build());
         return item;
     }
 
     public Map<String, Object> toResponseMap() {
-        Map<String, Object> map = new HashMap<>();
+        final Map<String, Object> map = new HashMap<>();
         map.put("id", id);
         map.put("name", name);
         return map;
     }
 
-    public static Person fromItem(Map<String, AttributeValue> item) {
+    public static Person fromItem(final Map<String, AttributeValue> item) {
         return new Person(item.get("id").s(), item.get("name").s());
     }
 }

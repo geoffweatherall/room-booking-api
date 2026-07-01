@@ -3,7 +3,7 @@ package com.roombooking.handler;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.roombooking.dynamo.DynamoDbClientProvider;
-import com.roombooking.model.Person;
+import com.roombooking.model.Booking;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
@@ -12,17 +12,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/** AppSync direct-Lambda resolver for {@code Query.people}. */
-public class ListPeopleHandler implements RequestHandler<Map<String, Object>, Object> {
+/** AppSync direct-Lambda resolver for {@code Query.bookings}. */
+public class ListBookingsHandler implements RequestHandler<Map<String, Object>, Object> {
 
     private final DynamoDbClient dynamoDbClient;
     private final String tableName;
 
-    public ListPeopleHandler() {
-        this(DynamoDbClientProvider.client(), System.getenv().getOrDefault("PEOPLE_TABLE_NAME", "People"));
+    public ListBookingsHandler() {
+        this(DynamoDbClientProvider.client(), System.getenv().getOrDefault("BOOKINGS_TABLE_NAME", "Bookings"));
     }
 
-    ListPeopleHandler(final DynamoDbClient dynamoDbClient, final String tableName) {
+    ListBookingsHandler(final DynamoDbClient dynamoDbClient, final String tableName) {
         this.dynamoDbClient = dynamoDbClient;
         this.tableName = tableName;
     }
@@ -30,10 +30,10 @@ public class ListPeopleHandler implements RequestHandler<Map<String, Object>, Ob
     @Override
     public Object handleRequest(final Map<String, Object> event, final Context context) {
         final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(tableName).build());
-        final List<Map<String, Object>> people = response.items().stream()
-                .map(Person::fromItem)
-                .map(Person::toResponseMap)
+        final List<Map<String, Object>> bookings = response.items().stream()
+                .map(Booking::fromItem)
+                .map(Booking::toResponseMap)
                 .collect(Collectors.toList());
-        return people;
+        return bookings;
     }
 }
