@@ -3,6 +3,6 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-source ./api-authentic.sh
+source ./authenticate.sh
 
 mvn -f verify/pom.xml clean verify

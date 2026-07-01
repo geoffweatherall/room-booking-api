@@ -1,8 +1,8 @@
 ### Sample GraphQL calls against the deployed room-booking API.
 ### graphqlUrl/apiKey are read from the GRAPHQL_API_URL/GRAPHQL_API_KEY environment variables
-### (see api-authentic.sh in the project root: `source api-authentic.sh`).
+### (see authenticate.sh in the project root: `source authenticate.sh`).
 ### NOTE: REST Client's $processEnv reads the environment of the VSCode process itself, not your
-### terminal - if VSCode was already running before you sourced api-authentic.sh, either restart
+### terminal - if VSCode was already running before you sourced authenticate.sh, either restart
 ### VSCode from that same shell, or launch `code .` from it so it inherits the exported variables.
 
 @graphqlUrl = {{$processEnv GRAPHQL_API_URL}}
