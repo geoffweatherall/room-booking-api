@@ -1,0 +1,38 @@
+schema {
+ query: Query
+ mutation: Mutation
+}
+
+type Query {
+ people: [Person!]!
+ rooms: [Room!]!
+}
+
+type Mutation {
+ createRoom(room: RoomInput!): Room!
+ createPerson(person: PersonInput!): Person!
+}
+
+type Room {
+   id: ID!
+   name: String!
+   capacity: Int!
+}
+
+input RoomInput {
+   name: String!
+   capacity: Int!
+}
+
+
+
+type Person {
+    id: ID!
+    name: String!
+}
+
+input PersonInput {
+    name: String!
+}
+
+

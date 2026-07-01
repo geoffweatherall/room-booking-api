@@ -1,0 +1,49 @@
+### Sample GraphQL calls against the deployed room-booking API.
+### Fill in the two variables below after `deploy/deploy.sh` has run:
+###   terraform -chdir=deploy/terraform output graphql_api_url
+###   terraform -chdir=deploy/terraform output -raw graphql_api_key
+
+@graphqlUrl = https://dmici5zrszes7f6n5ikvwzf3pm.appsync-api.us-east-1.amazonaws.com/graphql
+@apiKey = da2-awybstxo2rhpfkmm2q2v53zchu
+
+### List rooms
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "query { rooms { id name capacity } }"
+}
+
+### List people
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "query { people { id name } }"
+}
+
+### Create a room
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { id name capacity } }",
+  "variables": {
+    "room": { "name": "Conference A", "capacity": 8 }
+  }
+}
+
+### Create a person
+POST {{graphqlUrl}}
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "query": "mutation CreatePerson($person: PersonInput!) { createPerson(person: $person) { id name } }",
+  "variables": {
+    "person": { "name": "Geoff Weatherall" }
+  }
+}
