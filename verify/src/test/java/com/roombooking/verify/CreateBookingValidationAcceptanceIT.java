@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Acceptance tests for the {@code createBooking} validation rules: 5-minute time boundaries,
@@ -86,6 +87,28 @@ class CreateBookingValidationAcceptanceIT {
 
         assertThat(bookingOf(payload).isNull(), is(true));
         assertThat(errorsOf(payload), hasItem(equalTo(BookingError.StartMissaligned.name())));
+    }
+
+    @Test
+    void blankRoomIdIsRejected() {
+        LOG.info("Checking a blank roomId is rejected");
+        final JsonNode payload = createBookingPayload("", organiserId, List.of(attendeeId),
+                "2026-09-01T10:00:00", "2026-09-01T10:30:00");
+
+        assertThat(bookingOf(payload).isNull(), is(true));
+        assertThat(errorsOf(payload), hasItem(equalTo(BookingError.RoomRequired.name())));
+        assertThat(errorsOf(payload), not(hasItem(equalTo(BookingError.RoomNotFound.name()))));
+    }
+
+    @Test
+    void blankOrganiserIdIsRejected() {
+        LOG.info("Checking a blank organiserId is rejected");
+        final JsonNode payload = createBookingPayload(roomId, "", List.of(attendeeId),
+                "2026-09-01T10:00:00", "2026-09-01T10:30:00");
+
+        assertThat(bookingOf(payload).isNull(), is(true));
+        assertThat(errorsOf(payload), hasItem(equalTo(BookingError.OrganiserRequired.name())));
+        assertThat(errorsOf(payload), not(hasItem(equalTo(BookingError.OrganiserNotFound.name()))));
     }
 
     @Test

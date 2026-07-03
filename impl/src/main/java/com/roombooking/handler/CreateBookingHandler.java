@@ -60,14 +60,24 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
         final LocalDateTime startTime = parseOnFiveMinuteBoundary(startTimeText, BookingError.StartMissaligned, errors);
         final LocalDateTime endTime = parseOnFiveMinuteBoundary(endTimeText, BookingError.EndMissaligned, errors);
 
-        final Room room = getRoom(roomId);
-        if (room == null) {
-            errors.add(BookingError.RoomNotFound.name());
+        Room room = null;
+        if (isBlank(roomId)) {
+            errors.add(BookingError.RoomRequired.name());
+        } else {
+            room = getRoom(roomId);
+            if (room == null) {
+                errors.add(BookingError.RoomNotFound.name());
+            }
         }
 
-        final Person organiser = getPerson(organiserId);
-        if (organiser == null) {
-            errors.add(BookingError.OrganiserNotFound.name());
+        Person organiser = null;
+        if (isBlank(organiserId)) {
+            errors.add(BookingError.OrganiserRequired.name());
+        } else {
+            organiser = getPerson(organiserId);
+            if (organiser == null) {
+                errors.add(BookingError.OrganiserNotFound.name());
+            }
         }
 
         final List<Person> attendees = new ArrayList<>();
@@ -129,7 +139,7 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
     }
 
     private Room getRoom(final String roomId) {
-        if (roomId == null) {
+        if (isBlank(roomId)) {
             return null;
         }
         final GetItemResponse response = dynamoDbClient.getItem(GetItemRequest.builder()
@@ -140,7 +150,7 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
     }
 
     private Person getPerson(final String personId) {
-        if (personId == null) {
+        if (isBlank(personId)) {
             return null;
         }
         final GetItemResponse response = dynamoDbClient.getItem(GetItemRequest.builder()
@@ -148,6 +158,10 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
                 .key(Map.of("id", AttributeValue.builder().s(personId).build()))
                 .build());
         return response.hasItem() ? Person.fromItem(response.item()) : null;
+    }
+
+    private static boolean isBlank(final String value) {
+        return value == null || value.isBlank();
     }
 
     private boolean roomHasOverlappingBooking(final String roomId, final LocalDateTime startTime, final LocalDateTime endTime) {

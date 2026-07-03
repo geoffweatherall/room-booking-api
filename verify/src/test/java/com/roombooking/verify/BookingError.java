@@ -9,7 +9,9 @@ enum BookingError {
     EndMissaligned,
     InsufficientCapacity,
     TimeRangeUnavailable,
+    RoomRequired,
     RoomNotFound,
+    OrganiserRequired,
     OrganiserNotFound,
     AttendeeNotFound
 }

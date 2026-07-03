@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import module java.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -81,6 +82,76 @@ class CreateBookingHandlerTest {
         assertTrue(errors.contains(BookingError.StartMissaligned.name()));
         assertNull(result.get("booking"));
         assertTrue(fakeClient.tables.getOrDefault("Bookings", List.of()).isEmpty());
+    }
+
+    @Test
+    void rejectsWhenRoomIdIsMissing() {
+        final Map<String, Object> event = bookingArguments(null, "organiser-1", List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.RoomRequired.name()));
+        assertFalse(errors.contains(BookingError.RoomNotFound.name()));
+        assertNull(result.get("booking"));
+    }
+
+    @Test
+    void rejectsWhenRoomIdIsBlank() {
+        final Map<String, Object> event = bookingArguments("   ", "organiser-1", List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.RoomRequired.name()));
+        assertFalse(errors.contains(BookingError.RoomNotFound.name()));
+        assertNull(result.get("booking"));
+    }
+
+    @Test
+    void rejectsWhenOrganiserIdIsMissing() {
+        final Map<String, Object> event = bookingArguments("room-1", null, List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.OrganiserRequired.name()));
+        assertFalse(errors.contains(BookingError.OrganiserNotFound.name()));
+        assertNull(result.get("booking"));
+    }
+
+    @Test
+    void rejectsWhenOrganiserIdIsBlank() {
+        final Map<String, Object> event = bookingArguments("room-1", "", List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.OrganiserRequired.name()));
+        assertFalse(errors.contains(BookingError.OrganiserNotFound.name()));
+        assertNull(result.get("booking"));
+    }
+
+    @Test
+    void rejectsWithBothRequiredErrorsWhenRoomAndOrganiserAreBothMissing() {
+        final Map<String, Object> event = bookingArguments(null, null, List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.RoomRequired.name()));
+        assertTrue(errors.contains(BookingError.OrganiserRequired.name()));
+        assertNull(result.get("booking"));
     }
 
     @Test
