@@ -83,4 +83,37 @@ class CreateRoomAcceptanceIT {
         final JsonNode roomsResult = client.execute("query { rooms { id } }");
         assertThat(roomsResult.get("rooms").size(), equalTo(0));
     }
+
+    @Test
+    void capacityOfZeroIsRejected() {
+        LOG.info("Checking a room capacity of 0 is rejected");
+        final JsonNode createResult = client.execute(CREATE_ROOM_MUTATION,
+                Map.of("room", Map.of("name", faker.address().city() + " Room", "capacity", 0)));
+
+        final JsonNode createRoomPayload = createResult.get("createRoom");
+        assertThat(createRoomPayload.get("room").isNull(), is(true));
+        assertThat(createRoomPayload.get("errors").get(0).asText(), equalTo(RoomError.CapacityTooLow.name()));
+    }
+
+    @Test
+    void capacityOfOneIsRejected() {
+        LOG.info("Checking a room capacity of 1 is rejected");
+        final JsonNode createResult = client.execute(CREATE_ROOM_MUTATION,
+                Map.of("room", Map.of("name", faker.address().city() + " Room", "capacity", 1)));
+
+        final JsonNode createRoomPayload = createResult.get("createRoom");
+        assertThat(createRoomPayload.get("room").isNull(), is(true));
+        assertThat(createRoomPayload.get("errors").get(0).asText(), equalTo(RoomError.CapacityTooLow.name()));
+    }
+
+    @Test
+    void capacityOfExactlyTwoIsAllowed() {
+        LOG.info("Checking a room capacity of exactly 2 is allowed");
+        final JsonNode createResult = client.execute(CREATE_ROOM_MUTATION,
+                Map.of("room", Map.of("name", faker.address().city() + " Room", "capacity", 2)));
+
+        final JsonNode createRoomPayload = createResult.get("createRoom");
+        assertThat(createRoomPayload.get("errors").size(), equalTo(0));
+        assertThat(createRoomPayload.get("room").get("capacity").asInt(), equalTo(2));
+    }
 }

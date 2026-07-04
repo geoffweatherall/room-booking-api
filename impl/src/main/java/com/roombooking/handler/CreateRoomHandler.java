@@ -37,6 +37,9 @@ public class CreateRoomHandler implements RequestHandler<Map<String, Object>, Ob
         if (name == null || name.isBlank()) {
             errors.add(RoomError.NameRequired.name());
         }
+        if (capacity < 2) {
+            errors.add(RoomError.CapacityTooLow.name());
+        }
 
         final Map<String, Object> result = new HashMap<>();
         if (!errors.isEmpty()) {

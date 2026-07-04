@@ -5,5 +5,6 @@ package com.roombooking.model;
  * value names exactly, since AppSync serializes/validates enum values as these literal strings.
  */
 public enum RoomError {
-    NameRequired
+    NameRequired,
+    CapacityTooLow
 }

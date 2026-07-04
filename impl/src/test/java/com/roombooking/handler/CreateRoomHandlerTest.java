@@ -94,4 +94,58 @@ class CreateRoomHandlerTest {
         assertTrue(errors.contains(RoomError.NameRequired.name()));
         assertNull(result.get("room"));
     }
+
+    @Test
+    void rejectsWhenCapacityIsZero() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        final CreateRoomHandler handler = new CreateRoomHandler(fakeClient, "Rooms");
+
+        final Map<String, Object> result = invoke(handler, roomArguments("Conference A", 0));
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(RoomError.CapacityTooLow.name()));
+        assertNull(result.get("room"));
+        assertTrue(fakeClient.tables.getOrDefault("Rooms", List.of()).isEmpty());
+    }
+
+    @Test
+    void rejectsWhenCapacityIsOne() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        final CreateRoomHandler handler = new CreateRoomHandler(fakeClient, "Rooms");
+
+        final Map<String, Object> result = invoke(handler, roomArguments("Conference A", 1));
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(RoomError.CapacityTooLow.name()));
+        assertNull(result.get("room"));
+    }
+
+    @Test
+    void allowsCapacityOfExactlyTwo() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        final CreateRoomHandler handler = new CreateRoomHandler(fakeClient, "Rooms");
+
+        final Map<String, Object> result = invoke(handler, roomArguments("Conference A", 2));
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.isEmpty());
+        assertNotNull(result.get("room"));
+    }
+
+    @Test
+    void rejectsWithBothErrorsWhenNameIsBlankAndCapacityIsTooLow() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        final CreateRoomHandler handler = new CreateRoomHandler(fakeClient, "Rooms");
+
+        final Map<String, Object> result = invoke(handler, roomArguments("", 1));
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(RoomError.NameRequired.name()));
+        assertTrue(errors.contains(RoomError.CapacityTooLow.name()));
+        assertNull(result.get("room"));
+    }
 }

@@ -25,6 +25,7 @@ type Room {
 
 input RoomInput {
    name: String!
+   "Must be 2 or more."
    capacity: Int!
 }
 
@@ -37,6 +38,7 @@ type CreateRoomResult {
 
 enum RoomError {
     NameRequired
+    CapacityTooLow
 }
 
 
