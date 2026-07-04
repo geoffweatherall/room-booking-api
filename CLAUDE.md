@@ -2,19 +2,4 @@
 
 This GraphQL API allows for people to book rooms.
 
-
-# Solution overview
-
-This GraphQL API is implemented using AWS AppSync, with AWS Lambda as data sources used by AppSync.  All data is stored in DynamoDB tables.  All AWS resources are configured to "scale to zero" so no cost is incurred when the API is not being called. 
-
-# Project structure
-
-The directory `/api` contains the GraphQL schema for this API.
-
-The directory `/impl` contains a Maven java project that provides Java Lambda data sources used to implement the API.
-
-The bash script `deploy.sh` in the project root is used to deploy this API into AWS.
-
-The directory `/deploy/terraform` contains the terraform files needed to create the AWS resources that implement this API.
-
-The directory `/verify` contains acceptance tests written in java using junit that verify the deployed system.  Run using verify.sh in the project root.
+**Start by reading [README.md](README.md)** — it describes the data model, the AppSync/Lambda/DynamoDB architecture, the directory structure, the bash scripts (deploy, undeploy, verify, authenticate), the AWS cost model, and the backend validation rules and how validation works. Keep README.md up to date when any of those change.
