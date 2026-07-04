@@ -18,7 +18,7 @@ class CreateBookingAcceptanceIT {
     private static final Logger LOG = LoggerFactory.getLogger(CreateBookingAcceptanceIT.class);
 
     private static final String CREATE_ROOM_MUTATION =
-            "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { id name capacity } }";
+            "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { room { id name capacity } errors } }";
     private static final String CREATE_PERSON_MUTATION =
             "mutation CreatePerson($person: PersonInput!) { createPerson(person: $person) { id name } }";
     private static final String BOOKING_FIELDS =
@@ -42,7 +42,7 @@ class CreateBookingAcceptanceIT {
         LOG.info("Creating room '{}'", roomName);
         final JsonNode roomResult = client.execute(CREATE_ROOM_MUTATION,
                 Map.of("room", Map.of("name", roomName, "capacity", 5)));
-        final String roomId = roomResult.get("createRoom").get("id").asText();
+        final String roomId = roomResult.get("createRoom").get("room").get("id").asText();
 
         final String organiserName = faker.name().fullName();
         LOG.info("Creating organiser '{}'", organiserName);

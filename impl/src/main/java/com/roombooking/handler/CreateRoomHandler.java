@@ -4,6 +4,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.roombooking.dynamo.DynamoDbClientProvider;
 import com.roombooking.model.Room;
+import com.roombooking.model.RoomError;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
@@ -31,14 +32,28 @@ public class CreateRoomHandler implements RequestHandler<Map<String, Object>, Ob
 
         final String name = (String) roomInput.get("name");
         final int capacity = ((Number) roomInput.get("capacity")).intValue();
-        final Room room = new Room(UUID.randomUUID().toString(), name, capacity);
 
+        final List<String> errors = new ArrayList<>();
+        if (name == null || name.isBlank()) {
+            errors.add(RoomError.NameRequired.name());
+        }
+
+        final Map<String, Object> result = new HashMap<>();
+        if (!errors.isEmpty()) {
+            result.put("room", null);
+            result.put("errors", errors);
+            return result;
+        }
+
+        final Room room = new Room(UUID.randomUUID().toString(), name, capacity);
         dynamoDbClient.putItem(PutItemRequest.builder()
                 .tableName(tableName)
                 .item(room.toItem())
                 .build());
 
-        return room.toResponseMap();
+        result.put("room", room.toResponseMap());
+        result.put("errors", errors);
+        return result;
     }
 
     @SuppressWarnings("unchecked")

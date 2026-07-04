@@ -11,11 +11,15 @@ import module java.base;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
-/** Acceptance test for creating a room and reading it back via the {@code rooms} query. */
+/** Acceptance tests for creating a room, reading it back via the {@code rooms} query, and validation. */
 class CreateRoomAcceptanceIT {
 
     private static final Logger LOG = LoggerFactory.getLogger(CreateRoomAcceptanceIT.class);
+
+    private static final String CREATE_ROOM_MUTATION =
+            "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { room { id name capacity } errors } }";
 
     private static GraphQlClient client;
     private static Faker faker;
@@ -34,14 +38,17 @@ class CreateRoomAcceptanceIT {
         final String roomName = faker.address().city() + " Room";
         final int capacity = faker.number().numberBetween(2, 20);
         LOG.info("Creating room '{}' with capacity {}", roomName, capacity);
-        final JsonNode createResult = client.execute(
-                "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { id name capacity } }",
+        final JsonNode createResult = client.execute(CREATE_ROOM_MUTATION,
                 Map.of("room", Map.of("name", roomName, "capacity", capacity)));
 
-        final String createdId = createResult.get("createRoom").get("id").asText();
+        final JsonNode createRoomPayload = createResult.get("createRoom");
+        assertThat(createRoomPayload.get("errors").size(), equalTo(0));
+
+        final JsonNode createdRoom = createRoomPayload.get("room");
+        final String createdId = createdRoom.get("id").asText();
         LOG.info("Created room with id '{}'", createdId);
-        assertThat(createResult.get("createRoom").get("name").asText(), equalTo(roomName));
-        assertThat(createResult.get("createRoom").get("capacity").asInt(), equalTo(capacity));
+        assertThat(createdRoom.get("name").asText(), equalTo(roomName));
+        assertThat(createdRoom.get("capacity").asInt(), equalTo(capacity));
 
         LOG.info("Querying rooms to check the created room is returned");
         final JsonNode roomsResult = client.execute("query { rooms { id name capacity } }");
@@ -52,5 +59,28 @@ class CreateRoomAcceptanceIT {
         assertThat(rooms.get(0).get("name").asText(), equalTo(roomName));
         assertThat(rooms.get(0).get("capacity").asInt(), equalTo(capacity));
         LOG.info("Room '{}' was successfully returned by the rooms query", roomName);
+    }
+
+    @Test
+    void blankRoomNameIsRejected() {
+        LOG.info("Checking a blank room name is rejected");
+        final JsonNode createResult = client.execute(CREATE_ROOM_MUTATION,
+                Map.of("room", Map.of("name", "", "capacity", 5)));
+
+        final JsonNode createRoomPayload = createResult.get("createRoom");
+        assertThat(createRoomPayload.get("room").isNull(), is(true));
+        assertThat(createRoomPayload.get("errors").get(0).asText(), equalTo(RoomError.NameRequired.name()));
+    }
+
+    @Test
+    void missingRoomNameIsRejectedWithoutPersistingARoom() {
+        LOG.info("Resetting the database before the test");
+        client.execute("mutation { reset }");
+
+        LOG.info("Checking a blank room name does not create a room");
+        client.execute(CREATE_ROOM_MUTATION, Map.of("room", Map.of("name", "   ", "capacity", 5)));
+
+        final JsonNode roomsResult = client.execute("query { rooms { id } }");
+        assertThat(roomsResult.get("rooms").size(), equalTo(0));
     }
 }

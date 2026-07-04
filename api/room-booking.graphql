@@ -10,7 +10,7 @@ type Query {
 }
 
 type Mutation {
- createRoom(room: RoomInput!): Room!
+ createRoom(room: RoomInput!): CreateRoomResult!
  createPerson(person: PersonInput!): Person!
  createBooking(booking: BookingInput!): CreateBookingResult!
  "Deletes all stored rooms, people and bookings."
@@ -28,6 +28,16 @@ input RoomInput {
    capacity: Int!
 }
 
+type CreateRoomResult {
+    "Populated when the room passed all validation rules and was created."
+    room: Room
+    "Non-empty when the room was rejected; one entry per validation rule broken."
+    errors: [RoomError!]!
+}
+
+enum RoomError {
+    NameRequired
+}
 
 
 type Person {

@@ -27,7 +27,7 @@ class CreateBookingValidationAcceptanceIT {
     private static final Logger LOG = LoggerFactory.getLogger(CreateBookingValidationAcceptanceIT.class);
 
     private static final String CREATE_ROOM_MUTATION =
-            "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { id } }";
+            "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { room { id } errors } }";
     private static final String CREATE_PERSON_MUTATION =
             "mutation CreatePerson($person: PersonInput!) { createPerson(person: $person) { id } }";
     private static final String CREATE_BOOKING_MUTATION =
@@ -249,7 +249,7 @@ class CreateBookingValidationAcceptanceIT {
 
     private String createRoom(final String name, final int capacity) {
         final JsonNode result = client.execute(CREATE_ROOM_MUTATION, Map.of("room", Map.of("name", name, "capacity", capacity)));
-        return result.get("createRoom").get("id").asText();
+        return result.get("createRoom").get("room").get("id").asText();
     }
 
     private String createPerson(final String name) {

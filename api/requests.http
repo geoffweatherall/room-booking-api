@@ -36,12 +36,13 @@ x-api-key: {{apiKey}}
 }
 
 ### Create a room
+### On failure, "errors" is a non-empty list of the broken rules and "room" is null.
 POST {{graphqlUrl}}
 Content-Type: application/json
 x-api-key: {{apiKey}}
 
 {
-  "query": "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { id name capacity } }",
+  "query": "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { room { id name capacity } errors } }",
   "variables": {
     "room": { "name": "Conference A", "capacity": 8 }
   }
