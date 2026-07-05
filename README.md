@@ -1,5 +1,7 @@
 # room-booking API
 
+A project that is part of my [Claude Code exploration](https://github.com/geoffweatherall/room-booking).
+
 A GraphQL API for booking meeting rooms. Clients can create rooms, people, and bookings, list each of them, and reset all stored data. The API is serverless: AWS AppSync fronts a set of Java Lambda functions backed by DynamoDB, and every component scales to zero so an idle deployment costs (almost) nothing.
 
 ## Data model
