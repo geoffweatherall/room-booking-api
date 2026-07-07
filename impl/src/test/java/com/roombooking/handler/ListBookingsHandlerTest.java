@@ -8,9 +8,12 @@ import org.junit.jupiter.api.Test;
 import module java.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ListBookingsHandlerTest {
+
+    private static final Map<String, Object> AUTHENTICATED_EVENT = Map.of("identity", Map.of("sub", "test-user"));
 
     @Test
     void returnsAllBookingsInTableWithNestedRoomAndPeople() {
@@ -27,7 +30,7 @@ class ListBookingsHandlerTest {
         final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings");
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(Map.of(), null);
+        final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(AUTHENTICATED_EVENT, null);
 
         assertEquals(1, result.size());
         final Map<String, Object> resultBooking = result.getFirst();
@@ -54,8 +57,15 @@ class ListBookingsHandlerTest {
         final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings");
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(Map.of(), null);
+        final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(AUTHENTICATED_EVENT, null);
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void rejectsUnauthenticatedRequests() {
+        final ListBookingsHandler handler = new ListBookingsHandler(new FakeDynamoDbClient(), "Bookings");
+
+        assertThrows(IllegalStateException.class, () -> handler.handleRequest(Map.of(), null));
     }
 }

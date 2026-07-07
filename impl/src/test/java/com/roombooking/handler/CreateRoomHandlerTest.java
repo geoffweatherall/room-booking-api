@@ -9,6 +9,7 @@ import module java.base;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreateRoomHandlerTest {
@@ -21,6 +22,7 @@ class CreateRoomHandlerTest {
         arguments.put("room", roomInput);
         final Map<String, Object> event = new HashMap<>();
         event.put("arguments", arguments);
+        event.put("identity", Map.of("sub", "test-user"));
         return event;
     }
 
@@ -133,6 +135,18 @@ class CreateRoomHandlerTest {
         final List<String> errors = (List<String>) result.get("errors");
         assertTrue(errors.isEmpty());
         assertNotNull(result.get("room"));
+    }
+
+    @Test
+    void rejectsUnauthenticatedRequests() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        final CreateRoomHandler handler = new CreateRoomHandler(fakeClient, "Rooms");
+
+        final Map<String, Object> event = roomArguments("Conference A", 8);
+        event.remove("identity");
+
+        assertThrows(IllegalStateException.class, () -> handler.handleRequest(event, null));
+        assertTrue(fakeClient.tables.getOrDefault("Rooms", List.of()).isEmpty());
     }
 
     @Test

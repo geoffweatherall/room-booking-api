@@ -36,6 +36,8 @@ public class ResetHandler implements RequestHandler<Map<String, Object>, Object>
 
     @Override
     public Object handleRequest(final Map<String, Object> event, final Context context) {
+        Identity.requireAuthenticated(event);
+
         deleteAllItems(roomsTableName);
         deleteAllItems(peopleTableName);
         deleteAllItems(bookingsTableName);

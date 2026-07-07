@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreateBookingHandlerTest {
@@ -44,12 +45,23 @@ class CreateBookingHandlerTest {
         arguments.put("booking", booking);
         final Map<String, Object> event = new HashMap<>();
         event.put("arguments", arguments);
+        event.put("identity", Map.of("sub", "test-user"));
         return event;
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> invoke(final Map<String, Object> event) {
         return (Map<String, Object>) handler.handleRequest(event, null);
+    }
+
+    @Test
+    void rejectsUnauthenticatedRequests() {
+        final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+        event.remove("identity");
+
+        assertThrows(IllegalStateException.class, () -> handler.handleRequest(event, null));
+        assertTrue(fakeClient.tables.getOrDefault("Bookings", List.of()).isEmpty());
     }
 
     @Test

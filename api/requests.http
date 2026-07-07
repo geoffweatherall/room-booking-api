@@ -1,17 +1,35 @@
 ### Sample GraphQL calls against the deployed room-booking API.
-### graphqlUrl/apiKey are read from the GRAPHQL_API_URL/GRAPHQL_API_KEY environment variables
-### (see authenticate.sh in the project root: `source authenticate.sh`).
+### The API is authenticated by a Cognito user pool: every request must carry a JWT in the
+### Authorization header. These samples use the acceptance-test app client's OAuth2
+### client_credentials flow to obtain one - run the "Get an access token" request FIRST,
+### then the other requests reference the token from its response.
+###
+### The variables below are read from the environment exported by authenticate.sh in the
+### project root (`source authenticate.sh`).
 ### NOTE: REST Client's $processEnv reads the environment of the VSCode process itself, not your
 ### terminal - if VSCode was already running before you sourced authenticate.sh, either restart
 ### VSCode from that same shell, or launch `code .` from it so it inherits the exported variables.
 
 @graphqlUrl = {{$processEnv GRAPHQL_API_URL}}
-@apiKey = {{$processEnv GRAPHQL_API_KEY}}
+@tokenUrl = {{$processEnv COGNITO_TOKEN_URL}}
+@clientId = {{$processEnv COGNITO_TEST_CLIENT_ID}}
+@clientSecret = {{$processEnv COGNITO_TEST_CLIENT_SECRET}}
+@scope = {{$processEnv COGNITO_TEST_SCOPE}}
+
+### Get an access token (run FIRST; valid for 1 hour, re-run when it expires).
+# @name cognitoToken
+POST {{tokenUrl}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id={{clientId}}&client_secret={{clientSecret}}&scope={{scope}}
+
+###
+@accessToken = {{cognitoToken.response.body.$.access_token}}
 
 ### List rooms
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "query { rooms { id name capacity }  }"
@@ -20,7 +38,7 @@ x-api-key: {{apiKey}}
 ### List people
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "query { people { id name } }"
@@ -29,7 +47,7 @@ x-api-key: {{apiKey}}
 ### List bookings
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "query { bookings { id room { id name capacity } organiser { id name } attendees { id name } startTime endTime } }"
@@ -39,7 +57,7 @@ x-api-key: {{apiKey}}
 ### On failure, "errors" is a non-empty list of the broken rules and "room" is null.
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "mutation CreateRoom($room: RoomInput!) { createRoom(room: $room) { room { id name capacity } errors } }",
@@ -51,7 +69,7 @@ x-api-key: {{apiKey}}
 ### Create a person
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "mutation CreatePerson($person: PersonInput!) { createPerson(person: $person) { id name } }",
@@ -66,7 +84,7 @@ x-api-key: {{apiKey}}
 ### On failure, "errors" is a non-empty list of the broken rules and "booking" is null.
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "mutation CreateBooking($booking: BookingInput!) { createBooking(booking: $booking) { booking { id room { id name capacity } organiser { id name } attendees { id name } startTime endTime } errors } }",
@@ -84,19 +102,16 @@ x-api-key: {{apiKey}}
 ### Reset (deletes ALL stored rooms, people and bookings)
 POST {{graphqlUrl}}
 Content-Type: application/json
-x-api-key: {{apiKey}}
+Authorization: {{accessToken}}
 
 {
   "query": "mutation { reset }"
 }
 
+### Unauthenticated request - expect HTTP 401 UnauthorizedException (no Authorization header)
+POST {{graphqlUrl}}
+Content-Type: application/json
 
-###
-###id": "4d4c933e-28c9-45ca-bf7c-a96f26cfa355",
-###        "name": "Geoff Weatherall"
-###        "id": "4a94fef3-f1a8-4d1c-8fc0-749b32a9870d",
-###        "name": "Test Attendee"
-###              "id": "78514c8d-ac39-4a8a-9f97-abeb66eba37f",
-####        "name": "Ada Lovelace"
-###        "id": "1a70c0bd-a354-4909-a192-826ba63353bf",
-###        "name": "Test Organiser"
+{
+  "query": "query { rooms { id name capacity } }"
+}

@@ -27,6 +27,8 @@ public class CreateRoomHandler implements RequestHandler<Map<String, Object>, Ob
 
     @Override
     public Object handleRequest(final Map<String, Object> event, final Context context) {
+        Identity.requireAuthenticated(event);
+
         final Map<String, Object> arguments = castToMap(event.get("arguments"));
         final Map<String, Object> roomInput = castToMap(arguments.get("room"));
 

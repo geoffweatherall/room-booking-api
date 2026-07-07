@@ -8,9 +8,12 @@ import org.junit.jupiter.api.Test;
 import module java.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ResetHandlerTest {
+
+    private static final Map<String, Object> AUTHENTICATED_EVENT = Map.of("identity", Map.of("sub", "test-user"));
 
     @Test
     void deletesAllRoomsPeopleAndBookings() {
@@ -27,7 +30,7 @@ class ResetHandlerTest {
 
         final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
 
-        final Object result = handler.handleRequest(Map.of(), null);
+        final Object result = handler.handleRequest(AUTHENTICATED_EVENT, null);
 
         assertEquals(Boolean.TRUE, result);
         assertTrue(fakeClient.tables.get("Rooms").isEmpty());
@@ -40,8 +43,18 @@ class ResetHandlerTest {
         final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
         final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
 
-        final Object result = handler.handleRequest(Map.of(), null);
+        final Object result = handler.handleRequest(AUTHENTICATED_EVENT, null);
 
         assertEquals(Boolean.TRUE, result);
+    }
+
+    @Test
+    void rejectsUnauthenticatedRequests() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        fakeClient.tables.put("Rooms", new ArrayList<>(List.of(new Room("room-1", "Conference A", 8).toItem())));
+        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
+
+        assertThrows(IllegalStateException.class, () -> handler.handleRequest(Map.of(), null));
+        assertEquals(1, fakeClient.tables.get("Rooms").size());
     }
 }

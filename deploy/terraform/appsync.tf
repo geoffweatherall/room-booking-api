@@ -1,11 +1,13 @@
 resource "aws_appsync_graphql_api" "this" {
   name                = "${var.project_name}-api"
-  authentication_type = "API_KEY"
+  authentication_type = "AMAZON_COGNITO_USER_POOLS"
   schema              = file("${path.module}/../../api/room-booking.graphql")
-}
 
-resource "aws_appsync_api_key" "this" {
-  api_id = aws_appsync_graphql_api.this.id
+  user_pool_config {
+    user_pool_id   = aws_cognito_user_pool.this.id
+    aws_region     = var.aws_region
+    default_action = "ALLOW"
+  }
 }
 
 resource "aws_appsync_datasource" "list_rooms" {

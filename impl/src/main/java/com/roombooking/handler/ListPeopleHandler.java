@@ -27,6 +27,8 @@ public class ListPeopleHandler implements RequestHandler<Map<String, Object>, Ob
 
     @Override
     public Object handleRequest(final Map<String, Object> event, final Context context) {
+        Identity.requireAuthenticated(event);
+
         final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(tableName).build());
         return response.items().stream()
                 .map(Person::fromItem)

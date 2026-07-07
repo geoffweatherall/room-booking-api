@@ -27,6 +27,8 @@ public class ListBookingsHandler implements RequestHandler<Map<String, Object>, 
 
     @Override
     public Object handleRequest(final Map<String, Object> event, final Context context) {
+        Identity.requireAuthenticated(event);
+
         final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(tableName).build());
         return response.items().stream()
                 .map(Booking::fromItem)
