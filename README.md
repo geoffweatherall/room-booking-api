@@ -45,7 +45,7 @@ Client ──HTTP/GraphQL──▶ AWS AppSync ──direct Lambda resolver─�
 
 ## Authentication
 
-All access to the API is authenticated by an **Amazon Cognito user pool** (`room-booking-users`, created by Terraform in [deploy/terraform/cognito.tf](deploy/terraform/cognito.tf)). Users sign in with an **email address and password**; Cognito emails a verification code on sign-up. There is no API key.
+All access to the API is authenticated by an **Amazon Cognito user pool** (`room-booking-users`, created by Terraform in [deploy/terraform/cognito.tf](deploy/terraform/cognito.tf)). Users sign in with an **email address and password**; Cognito emails a verification code on sign-up, and account recovery (forgot password) works the same way — a code emailed to the verified address. There is no API key.
 
 Every GraphQL request must carry a JWT issued by the user pool in the `Authorization` header (the raw token, no `Bearer` prefix). Enforcement happens in two layers:
 

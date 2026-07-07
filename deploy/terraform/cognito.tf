@@ -4,7 +4,8 @@ resource "aws_cognito_user_pool" "this" {
   name = "${var.project_name}-users"
 
   # Users sign in with their email address; Cognito emails a verification code
-  # on sign-up (COGNITO_DEFAULT sender, fine at demo volumes).
+  # on sign-up and for password resets (COGNITO_DEFAULT sender, fine at demo
+  # volumes).
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
