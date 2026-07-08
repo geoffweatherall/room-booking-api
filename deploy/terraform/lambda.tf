@@ -12,7 +12,7 @@ locals {
 }
 
 resource "aws_lambda_function" "list_rooms" {
-  function_name    = "${var.project_name}-list-rooms"
+  function_name    = "${local.resource_prefix}-list-rooms"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ListRoomsHandler::handleRequest"
   runtime          = "java25"
@@ -27,7 +27,7 @@ resource "aws_lambda_function" "list_rooms" {
 }
 
 resource "aws_lambda_function" "list_people" {
-  function_name    = "${var.project_name}-list-people"
+  function_name    = "${local.resource_prefix}-list-people"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ListPeopleHandler::handleRequest"
   runtime          = "java25"
@@ -42,7 +42,7 @@ resource "aws_lambda_function" "list_people" {
 }
 
 resource "aws_lambda_function" "create_room" {
-  function_name    = "${var.project_name}-create-room"
+  function_name    = "${local.resource_prefix}-create-room"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.CreateRoomHandler::handleRequest"
   runtime          = "java25"
@@ -57,7 +57,7 @@ resource "aws_lambda_function" "create_room" {
 }
 
 resource "aws_lambda_function" "create_person" {
-  function_name    = "${var.project_name}-create-person"
+  function_name    = "${local.resource_prefix}-create-person"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.CreatePersonHandler::handleRequest"
   runtime          = "java25"
@@ -72,7 +72,7 @@ resource "aws_lambda_function" "create_person" {
 }
 
 resource "aws_lambda_function" "list_bookings" {
-  function_name    = "${var.project_name}-list-bookings"
+  function_name    = "${local.resource_prefix}-list-bookings"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ListBookingsHandler::handleRequest"
   runtime          = "java25"
@@ -87,7 +87,7 @@ resource "aws_lambda_function" "list_bookings" {
 }
 
 resource "aws_lambda_function" "create_booking" {
-  function_name    = "${var.project_name}-create-booking"
+  function_name    = "${local.resource_prefix}-create-booking"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.CreateBookingHandler::handleRequest"
   runtime          = "java25"
@@ -102,7 +102,7 @@ resource "aws_lambda_function" "create_booking" {
 }
 
 resource "aws_lambda_function" "reset" {
-  function_name    = "${var.project_name}-reset"
+  function_name    = "${local.resource_prefix}-reset"
   role             = aws_iam_role.lambda_exec.arn
   handler          = "com.roombooking.handler.ResetHandler::handleRequest"
   runtime          = "java25"

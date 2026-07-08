@@ -9,7 +9,7 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 }
 
 resource "aws_iam_role" "lambda_exec" {
-  name               = "${var.project_name}-lambda-exec"
+  name               = "${local.resource_prefix}-lambda-exec"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
@@ -36,7 +36,7 @@ data "aws_iam_policy_document" "lambda_dynamodb_access" {
 }
 
 resource "aws_iam_role_policy" "lambda_dynamodb_access" {
-  name   = "${var.project_name}-lambda-dynamodb-access"
+  name   = "${local.resource_prefix}-lambda-dynamodb-access"
   role   = aws_iam_role.lambda_exec.id
   policy = data.aws_iam_policy_document.lambda_dynamodb_access.json
 }
@@ -52,7 +52,7 @@ data "aws_iam_policy_document" "appsync_assume_role" {
 }
 
 resource "aws_iam_role" "appsync_lambda_invoke" {
-  name               = "${var.project_name}-appsync-lambda-invoke"
+  name               = "${local.resource_prefix}-appsync-lambda-invoke"
   assume_role_policy = data.aws_iam_policy_document.appsync_assume_role.json
 }
 
@@ -72,7 +72,7 @@ data "aws_iam_policy_document" "appsync_invoke_lambda" {
 }
 
 resource "aws_iam_role_policy" "appsync_invoke_lambda" {
-  name   = "${var.project_name}-appsync-invoke-lambda"
+  name   = "${local.resource_prefix}-appsync-invoke-lambda"
   role   = aws_iam_role.appsync_lambda_invoke.id
   policy = data.aws_iam_policy_document.appsync_invoke_lambda.json
 }

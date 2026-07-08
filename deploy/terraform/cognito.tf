@@ -1,7 +1,7 @@
 data "aws_caller_identity" "current" {}
 
 resource "aws_cognito_user_pool" "this" {
-  name = "${var.project_name}-users"
+  name = "${local.resource_prefix}-users"
 
   # Users sign in with their email address; Cognito emails a verification code
   # on sign-up and for password resets (COGNITO_DEFAULT sender, fine at demo
@@ -27,7 +27,7 @@ resource "aws_cognito_user_pool" "this" {
 
 # Public (no secret) client used by the room-booking-webapp browser SPA.
 resource "aws_cognito_user_pool_client" "webapp" {
-  name         = "${var.project_name}-webapp"
+  name         = "${local.resource_prefix}-webapp"
   user_pool_id = aws_cognito_user_pool.this.id
 
   explicit_auth_flows = [
@@ -42,14 +42,14 @@ resource "aws_cognito_user_pool_client" "webapp" {
 # (https://<domain>.auth.<region>.amazoncognito.com/oauth2/token) that the
 # acceptance tests use. The account id makes the prefix globally unique.
 resource "aws_cognito_user_pool_domain" "this" {
-  domain       = "${var.project_name}-${data.aws_caller_identity.current.account_id}"
+  domain       = "${local.resource_prefix}-${data.aws_caller_identity.current.account_id}"
   user_pool_id = aws_cognito_user_pool.this.id
 }
 
 # Resource server defining the custom scope granted to client_credentials tokens.
 resource "aws_cognito_resource_server" "api" {
-  identifier   = "${var.project_name}-api"
-  name         = "${var.project_name}-api"
+  identifier   = "${local.resource_prefix}-api"
+  name         = "${local.resource_prefix}-api"
   user_pool_id = aws_cognito_user_pool.this.id
 
   scope {
@@ -62,7 +62,7 @@ resource "aws_cognito_resource_server" "api" {
 # OAuth2 client_credentials flow exchanges the id/secret for a JWT access token
 # without any human user or password being involved.
 resource "aws_cognito_user_pool_client" "acceptance_tests" {
-  name            = "${var.project_name}-acceptance-tests"
+  name            = "${local.resource_prefix}-acceptance-tests"
   user_pool_id    = aws_cognito_user_pool.this.id
   generate_secret = true
 

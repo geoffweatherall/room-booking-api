@@ -1,5 +1,5 @@
 resource "aws_dynamodb_table" "rooms" {
-  name         = "${var.project_name}-rooms"
+  name         = "${local.resource_prefix}-rooms"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "id"
 
@@ -10,7 +10,7 @@ resource "aws_dynamodb_table" "rooms" {
 }
 
 resource "aws_dynamodb_table" "people" {
-  name         = "${var.project_name}-people"
+  name         = "${local.resource_prefix}-people"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "id"
 
@@ -21,7 +21,7 @@ resource "aws_dynamodb_table" "people" {
 }
 
 resource "aws_dynamodb_table" "bookings" {
-  name         = "${var.project_name}-bookings"
+  name         = "${local.resource_prefix}-bookings"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "id"
 

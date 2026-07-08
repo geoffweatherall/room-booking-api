@@ -28,7 +28,7 @@ Each entity has its own DynamoDB table (`room-booking-rooms`, `room-booking-peop
 | `createBooking(booking)` | Mutation | Returns `CreateBookingResult` (booking or validation errors) |
 | `reset` | Mutation | Deletes all rooms, people and bookings |
 
-Sample requests for every operation are in [api/requests.http](api/requests.http). To use them: deploy, run `source authenticate.sh`, open the file in VS Code (REST Client extension), and run the **"Get an access token"** request first — the other requests reference the returned token via `{{cognitoToken.response.body.$.access_token}}` and send it in the `Authorization` header. Tokens last 1 hour; re-run the token request when one expires.
+Sample requests for every operation are in [api/requests.http](api/requests.http). To use them: deploy, run `source authenticate.sh <environment>`, open the file in VS Code (REST Client extension), and run the **"Get an access token"** request first — the other requests reference the returned token via `{{cognitoToken.response.body.$.access_token}}` and send it in the `Authorization` header. Tokens last 1 hour; re-run the token request when one expires.
 
 ## How it is implemented
 
@@ -74,7 +74,7 @@ Both projects' end-to-end tests run non-interactively (a dev shell or CI), so ne
 |---|---|
 | [api/](api/) | GraphQL schema ([room-booking.graphql](api/room-booking.graphql)) and sample requests ([requests.http](api/requests.http)) |
 | [impl/](impl/) | Maven project with the Java Lambda handlers (`com.roombooking.handler.*`), model records (`com.roombooking.model.*`), and unit tests. Builds the shaded jar deployed to Lambda. |
-| [deploy/terraform/](deploy/terraform/) | Terraform for all AWS resources: AppSync API, resolvers and data sources ([appsync.tf](deploy/terraform/appsync.tf)), Cognito user pool, app clients and test user ([cognito.tf](deploy/terraform/cognito.tf)), Lambda functions ([lambda.tf](deploy/terraform/lambda.tf)), DynamoDB tables ([dynamodb.tf](deploy/terraform/dynamodb.tf)), IAM roles ([iam.tf](deploy/terraform/iam.tf)), outputs (API URL, Cognito ids, test credentials). |
+| [deploy/terraform/](deploy/terraform/) | Terraform for all AWS resources: AppSync API, resolvers and data sources ([appsync.tf](deploy/terraform/appsync.tf)), Cognito user pool, app clients and test user ([cognito.tf](deploy/terraform/cognito.tf)), Lambda functions ([lambda.tf](deploy/terraform/lambda.tf)), DynamoDB tables ([dynamodb.tf](deploy/terraform/dynamodb.tf)), IAM roles ([iam.tf](deploy/terraform/iam.tf)), outputs (API URL, Cognito ids, test credentials). All resource names are prefixed with `<environment>-<project_name>` ([locals.tf](deploy/terraform/locals.tf)) so multiple environments can coexist in one AWS account. State is stored remotely in S3, one state file per environment ([backend.hcl](deploy/terraform/backend.hcl) — see the [room-booking-bootstrap-terraform](https://github.com/geoffweatherall/room-booking-bootstrap-terraform) README for how that bucket is set up, and the [room-booking project README](https://github.com/geoffweatherall/room-booking#multi-environment-deployments) for the multi-environment design). |
 | [verify/](verify/) | Maven project with JUnit acceptance tests (`*IT.java`, run by failsafe) that exercise the **deployed** API over HTTP. |
 
 ### Bash scripts
@@ -83,27 +83,33 @@ All scripts live in the project root and are run from there:
 
 | Script | What it does | How to run |
 |---|---|---|
-| [deploy.sh](deploy.sh) | Builds the Lambda jar (`mvn clean package` in `impl/`), then `terraform init` + `terraform apply -auto-approve` to create/update all AWS resources. Creates real AWS resources — run deliberately. | `./deploy.sh` |
-| [undeploy.sh](undeploy.sh) | `terraform destroy` — deletes the AppSync API, Lambdas, and DynamoDB tables **including all stored data**. Prompts for confirmation. | `./undeploy.sh` |
-| [authenticate.sh](authenticate.sh) | Reads the Terraform outputs and exports `GRAPHQL_API_URL`, the `COGNITO_*` variables (user pool id, webapp client id, token URL, test client id/secret/scope) and the `E2E_USER_*` test-user credentials into the current shell. Must be **sourced**, not executed. | `source authenticate.sh` |
-| [verify.sh](verify.sh) | Sources `authenticate.sh`, then runs the acceptance tests (`mvn clean verify` in `verify/`) against the deployed API. | `./verify.sh` |
+| [deploy.sh](deploy.sh) | Builds the Lambda jar (`mvn clean package` in `impl/`), then `terraform init` + `terraform apply -auto-approve` to create/update all AWS resources **for the given environment**. Creates real AWS resources — run deliberately. | `./deploy.sh <environment>` |
+| [undeploy.sh](undeploy.sh) | `terraform destroy` — deletes the AppSync API, Lambdas, and DynamoDB tables **including all stored data**, for the given environment. Prompts for confirmation. | `./undeploy.sh <environment>` |
+| [authenticate.sh](authenticate.sh) | Reads the given environment's Terraform outputs and exports `GRAPHQL_API_URL`, the `COGNITO_*` variables (user pool id, webapp client id, token URL, test client id/secret/scope) and the `E2E_USER_*` test-user credentials into the current shell. Must be **sourced**, not executed. | `source authenticate.sh <environment>` |
+| [verify.sh](verify.sh) | Sources `authenticate.sh <environment>`, then runs the acceptance tests (`mvn clean verify` in `verify/`) against that environment's deployed API. | `./verify.sh <environment>` |
 
 ## Build, test, deploy
 
-Prerequisites: Java 25, Maven, Terraform ≥ 1.5, and AWS credentials configured for the target account.
+Prerequisites: Java 25, Maven, Terraform ≥ 1.10, and AWS credentials configured for the target account.
+
+Every deploy/undeploy/authenticate/verify script takes an **environment** name
+(e.g. `test`, `production`, or your own name for a personal sandbox) so
+multiple independent copies of the API can run in the same AWS account at
+once — see the [room-booking project README](https://github.com/geoffweatherall/room-booking#multi-environment-deployments)
+for the full multi-environment how-to and the reasoning behind it.
 
 ```bash
 # Build the Lambda jar and run unit tests
 mvn -f impl/pom.xml clean package
 
-# Deploy (build + terraform apply)
-./deploy.sh
+# Deploy (build + terraform apply) to an environment, e.g. "test" or your own name
+./deploy.sh test
 
-# Run acceptance tests against the deployed API
-./verify.sh
+# Run acceptance tests against that environment's deployed API
+./verify.sh test
 
-# Tear everything down
-./undeploy.sh
+# Tear it down when you're done
+./undeploy.sh test
 ```
 
 The acceptance tests need a deployed API; they read the endpoint and the Cognito client_credentials settings from the environment variables exported by `authenticate.sh`, and fetch a JWT from the token endpoint before calling the API (see [Authentication](#authentication)). Note that `reset` and the acceptance tests delete/modify live data, so don't point them at a deployment you care about.

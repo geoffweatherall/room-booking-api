@@ -1,5 +1,5 @@
 resource "aws_appsync_graphql_api" "this" {
-  name                = "${var.project_name}-api"
+  name                = "${local.resource_prefix}-api"
   authentication_type = "AMAZON_COGNITO_USER_POOLS"
   schema              = file("${path.module}/../../api/room-booking.graphql")
 
