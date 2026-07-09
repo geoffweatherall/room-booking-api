@@ -54,6 +54,17 @@ resource "aws_appsync_datasource" "create_person" {
   }
 }
 
+resource "aws_appsync_datasource" "my_person" {
+  api_id           = aws_appsync_graphql_api.this.id
+  name             = "MyPersonDataSource"
+  type             = "AWS_LAMBDA"
+  service_role_arn = aws_iam_role.appsync_lambda_invoke.arn
+
+  lambda_config {
+    function_arn = aws_lambda_function.my_person.arn
+  }
+}
+
 resource "aws_appsync_datasource" "list_bookings" {
   api_id           = aws_appsync_graphql_api.this.id
   name             = "ListBookingsDataSource"
@@ -124,6 +135,15 @@ resource "aws_appsync_resolver" "create_person" {
   type              = "Mutation"
   field             = "createPerson"
   data_source       = aws_appsync_datasource.create_person.name
+  request_template  = local.direct_lambda_request_template
+  response_template = local.direct_lambda_response_template
+}
+
+resource "aws_appsync_resolver" "my_person" {
+  api_id            = aws_appsync_graphql_api.this.id
+  type              = "Query"
+  field             = "myPerson"
+  data_source       = aws_appsync_datasource.my_person.name
   request_template  = local.direct_lambda_request_template
   response_template = local.direct_lambda_response_template
 }

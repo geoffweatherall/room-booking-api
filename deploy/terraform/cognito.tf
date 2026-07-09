@@ -23,6 +23,23 @@ resource "aws_cognito_user_pool" "this" {
       priority = 1
     }
   }
+
+  # Creates the Person record for a user once their email is confirmed - see
+  # PostConfirmationCreatePersonHandler for why this runs post-confirmation rather than
+  # pre-sign-up (email isn't verified yet at that point).
+  lambda_config {
+    post_confirmation = aws_lambda_function.post_confirmation_create_person.arn
+  }
+}
+
+# Cognito invokes triggers directly via a resource-based Lambda permission (unlike AppSync's
+# datasources, which assume an IAM role), scoped to just this user pool.
+resource "aws_lambda_permission" "cognito_invoke_post_confirmation" {
+  statement_id  = "AllowCognitoInvokePostConfirmation"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.post_confirmation_create_person.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.this.arn
 }
 
 # Public (no secret) client used by the room-booking-webapp browser SPA.

@@ -48,6 +48,22 @@
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>url-connection-client</artifactId>
     </dependency>
+    <!--
+      The AWS SDK pulls in slf4j-api transitively (via sdk-core) with no binding on the classpath,
+      which prints "Failed to load class StaticLoggerBinder" at cold start. Declaring slf4j-api
+      directly pins the whole build to one (current) version instead of the SDK's older transitive
+      one, and logback-classic supplies the actual binding so SLF4J has somewhere to send logs.
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.18</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.5.37</version>
+    </dependency>
 
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -85,6 +101,11 @@
                   </excludes>
                 </filter>
               </filters>
+              <!-- Merges META-INF/services/org.slf4j.spi.SLF4JServiceProvider correctly into the
+                   shaded jar instead of one dependency's copy silently overwriting another's. -->
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
             </configuration>
           </execution>
         </executions>

@@ -8,6 +8,8 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
@@ -48,6 +50,23 @@ class FakeDynamoDbClient implements DynamoDbClient {
                 .findFirst()
                 .map(item -> GetItemResponse.builder().item(item).build())
                 .orElseGet(() -> GetItemResponse.builder().build());
+    }
+
+    /**
+     * Supports only the single-equality-condition queries ({@code "attr = :value"}) the handlers
+     * under test issue against a GSI; matches by scanning the table's items rather than modelling
+     * indexes, since the fake only needs to behave the same as the real query, not perform like it.
+     */
+    @Override
+    public QueryResponse query(final QueryRequest request) {
+        final String[] parts = request.keyConditionExpression().split("=", 2);
+        final String attributeName = parts[0].trim();
+        final AttributeValue attributeValue = request.expressionAttributeValues().get(parts[1].trim());
+
+        final List<Map<String, AttributeValue>> items = tables.getOrDefault(request.tableName(), new ArrayList<>()).stream()
+                .filter(item -> attributeValue.equals(item.get(attributeName)))
+                .toList();
+        return QueryResponse.builder().items(items).count(items.size()).build();
     }
 
     @Override

@@ -7,6 +7,8 @@ type Query {
  people: [Person!]!
  rooms: [Room!]!
  bookings: [Booking!]!
+ "The Person linked to the signed-in caller's own Cognito account, or null if none exists (e.g. the account predates automatic Person creation on sign-up, or was created without going through the confirm-sign-up flow)."
+ myPerson: Person
 }
 
 type Mutation {

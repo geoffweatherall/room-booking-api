@@ -71,6 +71,36 @@ resource "aws_lambda_function" "create_person" {
   }
 }
 
+resource "aws_lambda_function" "post_confirmation_create_person" {
+  function_name    = "${local.resource_prefix}-post-confirmation-create-person"
+  role             = aws_iam_role.lambda_exec.arn
+  handler          = "com.roombooking.handler.PostConfirmationCreatePersonHandler::handleRequest"
+  runtime          = "java25"
+  filename         = local.lambda_jar_path
+  source_code_hash = local.lambda_jar_hash
+  memory_size      = 512
+  timeout          = 15
+
+  environment {
+    variables = local.lambda_env_vars
+  }
+}
+
+resource "aws_lambda_function" "my_person" {
+  function_name    = "${local.resource_prefix}-my-person"
+  role             = aws_iam_role.lambda_exec.arn
+  handler          = "com.roombooking.handler.MyPersonHandler::handleRequest"
+  runtime          = "java25"
+  filename         = local.lambda_jar_path
+  source_code_hash = local.lambda_jar_hash
+  memory_size      = 512
+  timeout          = 15
+
+  environment {
+    variables = local.lambda_env_vars
+  }
+}
+
 resource "aws_lambda_function" "list_bookings" {
   function_name    = "${local.resource_prefix}-list-bookings"
   role             = aws_iam_role.lambda_exec.arn

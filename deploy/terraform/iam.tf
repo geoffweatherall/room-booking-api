@@ -31,6 +31,10 @@ data "aws_iam_policy_document" "lambda_dynamodb_access" {
       aws_dynamodb_table.rooms.arn,
       aws_dynamodb_table.people.arn,
       aws_dynamodb_table.bookings.arn,
+      # DynamoDB treats a table's GSIs as separate resources from the table itself, so querying
+      # the people table's cognitoSub-index (see PostConfirmationCreatePersonHandler) needs its
+      # own grant even though the handler already has access to the table.
+      "${aws_dynamodb_table.people.arn}/index/*",
     ]
   }
 }
@@ -64,6 +68,7 @@ data "aws_iam_policy_document" "appsync_invoke_lambda" {
       aws_lambda_function.list_people.arn,
       aws_lambda_function.create_room.arn,
       aws_lambda_function.create_person.arn,
+      aws_lambda_function.my_person.arn,
       aws_lambda_function.list_bookings.arn,
       aws_lambda_function.create_booking.arn,
       aws_lambda_function.reset.arn,
