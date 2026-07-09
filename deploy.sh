@@ -18,6 +18,8 @@ if [[ ! "${environment}" =~ ^[a-z0-9-]+$ ]]; then
   exit 1
 fi
 
+echo "Deploying room-booking-api to '${environment}'..."
+
 # Isolates this environment's Terraform provider cache/backend pointer from
 # other environments, so deploying "test" and "production" from the same
 # checkout (even concurrently) can't cross-contaminate each other.

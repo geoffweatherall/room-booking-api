@@ -14,6 +14,8 @@ if [[ -z "${environment}" ]]; then
   exit 1
 fi
 
+echo "Undeploying room-booking-api environment '${environment}'..."
+
 export TF_DATA_DIR=".terraform-${environment}"
 
 terraform -chdir=deploy/terraform init -backend-config=backend.hcl -backend-config="key=${environment}/room-booking-api/terraform.tfstate"
