@@ -101,6 +101,16 @@ class CreateBookingValidationAcceptanceIT {
     }
 
     @Test
+    void blankSubjectIsRejected() {
+        LOG.info("Checking a blank subject is rejected");
+        final JsonNode payload = createBookingPayload(roomId, organiserId, List.of(attendeeId), "",
+                "2026-09-01T10:00:00", "2026-09-01T10:30:00");
+
+        assertThat(bookingOf(payload).isNull(), is(true));
+        assertThat(errorsOf(payload), hasItem(equalTo(BookingError.SubjectRequired.name())));
+    }
+
+    @Test
     void blankOrganiserIdIsRejected() {
         LOG.info("Checking a blank organiserId is rejected");
         final JsonNode payload = createBookingPayload(roomId, "", List.of(attendeeId),
@@ -259,10 +269,16 @@ class CreateBookingValidationAcceptanceIT {
 
     private JsonNode createBookingPayload(final String roomId, final String organiserId, final List<String> attendeeIds,
             final String startTime, final String endTime) {
+        return createBookingPayload(roomId, organiserId, attendeeIds, "Team sync", startTime, endTime);
+    }
+
+    private JsonNode createBookingPayload(final String roomId, final String organiserId, final List<String> attendeeIds,
+            final String subject, final String startTime, final String endTime) {
         final JsonNode result = client.execute(CREATE_BOOKING_MUTATION, Map.of("booking", Map.of(
                 "roomId", roomId,
                 "organiserId", organiserId,
                 "attendeeIds", attendeeIds,
+                "subject", subject,
                 "startTime", startTime,
                 "endTime", endTime)));
         return result.get("createBooking");

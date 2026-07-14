@@ -35,10 +35,16 @@ class CreateBookingHandlerTest {
 
     private static Map<String, Object> bookingArguments(final String roomId, final String organiserId, final List<String> attendeeIds,
             final String startTime, final String endTime) {
+        return bookingArguments(roomId, organiserId, attendeeIds, "Team sync", startTime, endTime);
+    }
+
+    private static Map<String, Object> bookingArguments(final String roomId, final String organiserId, final List<String> attendeeIds,
+            final String subject, final String startTime, final String endTime) {
         final Map<String, Object> booking = new HashMap<>();
         booking.put("roomId", roomId);
         booking.put("organiserId", organiserId);
         booking.put("attendeeIds", attendeeIds);
+        booking.put("subject", subject);
         booking.put("startTime", startTime);
         booking.put("endTime", endTime);
         final Map<String, Object> arguments = new HashMap<>();
@@ -125,6 +131,32 @@ class CreateBookingHandlerTest {
     }
 
     @Test
+    void rejectsWhenSubjectIsMissing() {
+        final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"), null,
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.SubjectRequired.name()));
+        assertNull(result.get("booking"));
+    }
+
+    @Test
+    void rejectsWhenSubjectIsBlank() {
+        final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"), "   ",
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.SubjectRequired.name()));
+        assertNull(result.get("booking"));
+    }
+
+    @Test
     void rejectsWhenOrganiserIdIsMissing() {
         final Map<String, Object> event = bookingArguments("room-1", null, List.of("attendee-1"),
                 "2026-07-01T14:30:00", "2026-07-01T15:00:00");
@@ -182,7 +214,7 @@ class CreateBookingHandlerTest {
     @Test
     void rejectsWhenRoomAlreadyBookedForOverlappingTime() {
         final Booking existing = new Booking("existing-booking", new Room("room-1", "Conference A", 3),
-                new Person("organiser-1", "Ada Lovelace"), List.of(),
+                new Person("organiser-1", "Ada Lovelace"), List.of(), "Existing meeting",
                 "2026-07-01T14:00:00", "2026-07-01T15:00:00");
         fakeClient.tables.put("Bookings", List.of(existing.toItem()));
 
@@ -201,7 +233,7 @@ class CreateBookingHandlerTest {
     @Test
     void allowsBackToBackBookingsThatDoNotOverlap() {
         final Booking existing = new Booking("existing-booking", new Room("room-1", "Conference A", 3),
-                new Person("organiser-1", "Ada Lovelace"), List.of(),
+                new Person("organiser-1", "Ada Lovelace"), List.of(), "Existing meeting",
                 "2026-07-01T14:00:00", "2026-07-01T14:30:00");
         fakeClient.tables.put("Bookings", new ArrayList<>(List.of(existing.toItem())));
 

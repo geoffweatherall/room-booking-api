@@ -10,7 +10,7 @@ The GraphQL schema lives in [api/room-booking.graphql](api/room-booking.graphql)
 
 - **Room** — `id`, `name`, `capacity`. Capacity is the total number of people the room holds (organiser + attendees).
 - **Person** — `id`, `name`. Also has a backend-only `cognitoSub` attribute, not exposed over GraphQL: it's set to the Cognito user's `sub` for a Person created automatically on sign-up (see [Sign-up creates a linked Person](#sign-up-creates-a-linked-person)), and left unset for people added directly (e.g. guests with no login), so a future account-deletion flow can find and remove the Person linked to a deleted Cognito user.
-- **Booking** — `id`, `room`, `organiser` (a Person), `attendees` (list of Person), `startTime`, `endTime`. Times are ISO-8601 local date-times with no time-zone offset (`java.time.LocalDateTime` semantics), e.g. `2026-07-01T14:30:00`, and must fall on a 5-minute boundary.
+- **Booking** — `id`, `room`, `organiser` (a Person), `attendees` (list of Person), `subject`, `startTime`, `endTime`. `subject` must not be null or blank. Times are ISO-8601 local date-times with no time-zone offset (`java.time.LocalDateTime` semantics), e.g. `2026-07-01T14:30:00`, and must fall on a 5-minute boundary.
 
 All `id` values are server-generated UUIDs; clients never supply ids on creation.
 
@@ -175,6 +175,7 @@ On success the entity field is populated and `errors` is empty. On failure the e
 | `OrganiserRequired` | `organiserId` must not be blank |
 | `OrganiserNotFound` | `organiserId` must refer to an existing person |
 | `AttendeeNotFound` | Every id in `attendeeIds` must refer to an existing person (one error per missing attendee) |
+| `SubjectRequired` | `subject` must not be null or blank |
 | `InsufficientCapacity` | Room capacity must be ≥ 1 + number of attendees (the organiser counts) |
 | `TimeRangeUnavailable` | The room must have no existing booking overlapping the requested `[startTime, endTime)` range (touching end-to-start is allowed) |
 

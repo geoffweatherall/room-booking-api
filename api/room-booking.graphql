@@ -58,6 +58,7 @@ type Booking {
     room: Room!
     organiser: Person!
     attendees: [Person!]!
+    subject: String!
     "ISO-8601 local date-time with no time-zone offset (java.time.LocalDateTime semantics), e.g. \"2026-07-01T14:30:00\"."
     startTime: String!
     "ISO-8601 local date-time with no time-zone offset (java.time.LocalDateTime semantics), e.g. \"2026-07-01T15:00:00\"."
@@ -68,6 +69,8 @@ input BookingInput {
     roomId: ID!
     organiserId: ID!
     attendeeIds: [ID!]!
+    "Must not be null or blank."
+    subject: String!
     "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T14:30:00\"."
     startTime: String!
     "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T15:00:00\"."
@@ -91,6 +94,7 @@ enum BookingError {
     OrganiserRequired
     OrganiserNotFound
     AttendeeNotFound
+    SubjectRequired
 }
 
 

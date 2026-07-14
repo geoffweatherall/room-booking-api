@@ -23,6 +23,7 @@ class ListBookingsHandlerTest {
                 new Room("r1", "Conference A", 8),
                 new Person("p1", "Ada Lovelace"),
                 List.of(new Person("p2", "Alan Turing")),
+                "Weekly sync",
                 "2026-07-01T14:30:00",
                 "2026-07-01T15:00:00");
         fakeClient.tables.put("Bookings", List.of(booking.toItem()));
@@ -34,6 +35,7 @@ class ListBookingsHandlerTest {
 
         assertEquals(1, result.size());
         final Map<String, Object> resultBooking = result.getFirst();
+        assertEquals("Weekly sync", resultBooking.get("subject"));
         assertEquals("2026-07-01T14:30:00", resultBooking.get("startTime"));
         assertEquals("2026-07-01T15:00:00", resultBooking.get("endTime"));
 

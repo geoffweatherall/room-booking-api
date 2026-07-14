@@ -13,5 +13,6 @@ enum BookingError {
     RoomNotFound,
     OrganiserRequired,
     OrganiserNotFound,
-    AttendeeNotFound
+    AttendeeNotFound,
+    SubjectRequired
 }

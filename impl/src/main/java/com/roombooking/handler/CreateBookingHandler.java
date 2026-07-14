@@ -54,10 +54,15 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
         final String organiserId = (String) bookingInput.get("organiserId");
         @SuppressWarnings("unchecked")
         final List<String> attendeeIds = (List<String>) bookingInput.get("attendeeIds");
+        final String subject = (String) bookingInput.get("subject");
         final String startTimeText = (String) bookingInput.get("startTime");
         final String endTimeText = (String) bookingInput.get("endTime");
 
         final List<String> errors = new ArrayList<>();
+
+        if (isBlank(subject)) {
+            errors.add(BookingError.SubjectRequired.name());
+        }
 
         final LocalDateTime startTime = parseOnFiveMinuteBoundary(startTimeText, BookingError.StartMissaligned, errors);
         final LocalDateTime endTime = parseOnFiveMinuteBoundary(endTimeText, BookingError.EndMissaligned, errors);
@@ -110,7 +115,7 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
             return result;
         }
 
-        final Booking booking = new Booking(UUID.randomUUID().toString(), room, organiser, attendees, startTimeText, endTimeText);
+        final Booking booking = new Booking(UUID.randomUUID().toString(), room, organiser, attendees, subject, startTimeText, endTimeText);
         dynamoDbClient.putItem(PutItemRequest.builder()
                 .tableName(bookingsTableName)
                 .item(booking.toItem())

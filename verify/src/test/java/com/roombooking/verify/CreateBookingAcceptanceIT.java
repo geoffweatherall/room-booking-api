@@ -22,7 +22,7 @@ class CreateBookingAcceptanceIT {
     private static final String CREATE_PERSON_MUTATION =
             "mutation CreatePerson($person: PersonInput!) { createPerson(person: $person) { id name } }";
     private static final String BOOKING_FIELDS =
-            "id room { id name capacity } organiser { id name } attendees { id name } startTime endTime";
+            "id room { id name capacity } organiser { id name } attendees { id name } subject startTime endTime";
 
     private static GraphQlClient client;
     private static Faker faker;
@@ -56,6 +56,7 @@ class CreateBookingAcceptanceIT {
                 Map.of("person", Map.of("name", attendeeName)));
         final String attendeeId = attendeeResult.get("createPerson").get("id").asText();
 
+        final String subject = faker.company().catchPhrase();
         final String startTime = "2026-08-01T10:00:00";
         final String endTime = "2026-08-01T10:30:00";
         LOG.info("Creating booking for room '{}' from {} to {}", roomName, startTime, endTime);
@@ -66,6 +67,7 @@ class CreateBookingAcceptanceIT {
                         "roomId", roomId,
                         "organiserId", organiserId,
                         "attendeeIds", List.of(attendeeId),
+                        "subject", subject,
                         "startTime", startTime,
                         "endTime", endTime)));
 
@@ -78,6 +80,7 @@ class CreateBookingAcceptanceIT {
         assertThat(createdBooking.get("room").get("id").asText(), equalTo(roomId));
         assertThat(createdBooking.get("organiser").get("id").asText(), equalTo(organiserId));
         assertThat(createdBooking.get("attendees").get(0).get("id").asText(), equalTo(attendeeId));
+        assertThat(createdBooking.get("subject").asText(), equalTo(subject));
         assertThat(createdBooking.get("startTime").asText(), equalTo(startTime));
         assertThat(createdBooking.get("endTime").asText(), equalTo(endTime));
 
