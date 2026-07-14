@@ -11,7 +11,12 @@ import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 import module java.base;
 
-/** AppSync direct-Lambda resolver for {@code Mutation.reset}. Deletes all stored rooms, people and bookings. */
+/**
+ * AppSync direct-Lambda resolver for {@code Mutation.reset}. Deletes all stored rooms and
+ * bookings, and every person <b>except</b> those linked to a real Cognito account (identified by
+ * a non-null {@code cognitoSub}) - so signed-up users never lose the Person record their account
+ * is linked to just because someone reset a shared, non-production environment.
+ */
 public class ResetHandler implements RequestHandler<Map<String, Object>, Object> {
 
     private final DynamoDbClient dynamoDbClient;
@@ -39,7 +44,7 @@ public class ResetHandler implements RequestHandler<Map<String, Object>, Object>
         Identity.requireAuthenticated(event);
 
         deleteAllItems(roomsTableName);
-        deleteAllItems(peopleTableName);
+        deleteUnlinkedPeople();
         deleteAllItems(bookingsTableName);
         return true;
     }
@@ -49,6 +54,19 @@ public class ResetHandler implements RequestHandler<Map<String, Object>, Object>
         for (final Map<String, AttributeValue> item : response.items()) {
             dynamoDbClient.deleteItem(DeleteItemRequest.builder()
                     .tableName(tableName)
+                    .key(Map.of("id", item.get("id")))
+                    .build());
+        }
+    }
+
+    private void deleteUnlinkedPeople() {
+        final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(peopleTableName).build());
+        for (final Map<String, AttributeValue> item : response.items()) {
+            if (item.containsKey("cognitoSub")) {
+                continue;
+            }
+            dynamoDbClient.deleteItem(DeleteItemRequest.builder()
+                    .tableName(peopleTableName)
                     .key(Map.of("id", item.get("id")))
                     .build());
         }

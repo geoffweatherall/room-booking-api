@@ -27,7 +27,7 @@ Each entity has its own DynamoDB table (`room-booking-rooms`, `room-booking-peop
 | `createRoom(room)` | Mutation | Returns `CreateRoomResult` (room or validation errors) |
 | `createPerson(person)` | Mutation | Returns the created `Person`; no validation |
 | `createBooking(booking)` | Mutation | Returns `CreateBookingResult` (booking or validation errors) |
-| `reset` | Mutation | Deletes all rooms, people and bookings |
+| `reset` | Mutation | Deletes all rooms and bookings, and every person except those linked to a Cognito account (see [Reset and real user accounts](#reset-and-real-user-accounts)) |
 
 Sample requests for every operation are in [api/requests.http](api/requests.http). To use them: deploy, run `source authenticate.sh <environment>`, open the file in VS Code (REST Client extension), and run the **"Get an access token"** request first — the other requests reference the returned token via `{{cognitoToken.response.body.$.access_token}}` and send it in the `Authorization` header. Tokens last 1 hour; re-run the token request when one expires.
 
@@ -51,6 +51,10 @@ When a user confirms their email during sign-up (in the [room-booking-webapp](ht
 This runs **after** email confirmation rather than before (a `PreSignUp` trigger would fire while the address is still unverified, risking orphaned Person records for abandoned or typo'd sign-ups) or from the browser (a client-side call after `confirmSignUp()` would leave a confirmed account with no Person if the tab closes or the network drops before that call completes). Cognito also retries `PostConfirmation` invocations on failure, so the handler is idempotent — it checks the `cognitoSub-index` GSI on the People table before writing, and skips creation if a Person already exists for that `sub`. Because Cognito treats an exception thrown here as a failure of the user's confirm-sign-up call (even though the account is already confirmed by that point), the handler logs and swallows any error rather than throwing, so a transient DynamoDB problem never blocks sign-up.
 
 Note: the Terraform-managed e2e test user ([cognito.tf](deploy/terraform/cognito.tf) `aws_cognito_user.e2e`) is created directly rather than through the sign-up/confirm API calls, so it does not get a linked Person this way.
+
+### Reset and real user accounts
+
+`Mutation.reset` ([ResetHandler](impl/src/main/java/com/roombooking/handler/ResetHandler.java)) always deletes every room and booking, but only deletes a person if its `cognitoSub` is unset. A real signed-up user's Person record is their only link back to their Cognito account (nothing recreates it after the fact — see above), so unconditionally wiping it on every reset would silently break their account the next time someone reset a shared, non-production environment. Guests added directly (no `cognitoSub`) have no such link and are always cleared, keeping `reset` useful for acceptance tests and tools like [room-booking-tools](https://github.com/geoffweatherall/room-booking-tools)' sample data generator without ever touching a real account — including the e2e test user, which is exempt for the same reason (it just happens to have no Person at all, per the note above).
 
 ### Displaying the signed-in user's name
 

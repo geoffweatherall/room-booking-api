@@ -4,6 +4,7 @@ import com.roombooking.model.Booking;
 import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import module java.base;
 
@@ -16,7 +17,7 @@ class ResetHandlerTest {
     private static final Map<String, Object> AUTHENTICATED_EVENT = Map.of("identity", Map.of("sub", "test-user"));
 
     @Test
-    void deletesAllRoomsPeopleAndBookings() {
+    void deletesAllRoomsAndBookingsAndUnlinkedPeople() {
         final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
         fakeClient.tables.put("Rooms", new ArrayList<>(List.of(
                 new Room("room-1", "Conference A", 8).toItem(),
@@ -36,6 +37,23 @@ class ResetHandlerTest {
         assertTrue(fakeClient.tables.get("Rooms").isEmpty());
         assertTrue(fakeClient.tables.get("People").isEmpty());
         assertTrue(fakeClient.tables.get("Bookings").isEmpty());
+    }
+
+    @Test
+    void keepsPeopleLinkedToACognitoAccount() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        fakeClient.tables.put("People", new ArrayList<>(List.of(
+                new Person("guest-1", "Ada Lovelace").toItem(),
+                new Person("linked-1", "Grace Hopper", "cognito-sub-123").toItem())));
+
+        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
+
+        final Object result = handler.handleRequest(AUTHENTICATED_EVENT, null);
+
+        assertEquals(Boolean.TRUE, result);
+        final List<Map<String, AttributeValue>> remaining = fakeClient.tables.get("People");
+        assertEquals(1, remaining.size());
+        assertEquals("linked-1", remaining.getFirst().get("id").s());
     }
 
     @Test

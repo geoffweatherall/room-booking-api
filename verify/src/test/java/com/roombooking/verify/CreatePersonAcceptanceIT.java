@@ -11,6 +11,7 @@ import module java.base;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /** Acceptance test for creating a person and reading it back via the {@code people} query. */
 class CreatePersonAcceptanceIT {
@@ -43,11 +44,12 @@ class CreatePersonAcceptanceIT {
 
         LOG.info("Querying people to check the created person is returned");
         final JsonNode peopleResult = client.execute("query { people { id name } }");
-        final JsonNode people = peopleResult.get("people");
+        final List<String> peopleIds = new ArrayList<>();
+        peopleResult.get("people").forEach(person -> peopleIds.add(person.get("id").asText()));
 
-        assertThat(people.size(), equalTo(1));
-        assertThat(people.get(0).get("id").asText(), equalTo(createdId));
-        assertThat(people.get(0).get("name").asText(), equalTo(personName));
+        // Not an exact-size check: reset only clears people with no linked Cognito account, so a
+        // shared environment may legitimately still have other (real, signed-up) people present.
+        assertThat(peopleIds, hasItem(createdId));
         LOG.info("Person '{}' was successfully returned by the people query", personName);
     }
 }

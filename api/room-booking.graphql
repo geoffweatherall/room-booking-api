@@ -15,7 +15,7 @@ type Mutation {
  createRoom(room: RoomInput!): CreateRoomResult!
  createPerson(person: PersonInput!): Person!
  createBooking(booking: BookingInput!): CreateBookingResult!
- "Deletes all stored rooms, people and bookings."
+ "Deletes all stored rooms and bookings, and every person except those linked to a Cognito account."
  reset: Boolean!
 }
 
