@@ -3,6 +3,16 @@ output "graphql_api_url" {
   value       = aws_appsync_graphql_api.this.uris["GRAPHQL"]
 }
 
+output "aws_region" {
+  description = "AWS region this environment is deployed into - for tools that call AWS APIs directly (e.g. room-booking-tools/database-repair) rather than only through the GraphQL API."
+  value       = var.aws_region
+}
+
+output "people_table_name" {
+  description = "DynamoDB table name for Person records - for tools that need direct read/write access (e.g. room-booking-tools/database-repair), not exposed via the GraphQL API."
+  value       = aws_dynamodb_table.people.name
+}
+
 output "cognito_user_pool_id" {
   description = "Id of the Cognito user pool that authenticates API callers."
   value       = aws_cognito_user_pool.this.id
@@ -43,4 +53,17 @@ output "e2e_user_password" {
   description = "Password of the pre-confirmed user the webapp Playwright tests sign in as."
   value       = random_password.e2e_user.result
   sensitive   = true
+}
+
+output "demo_user_email" {
+  description = "Email of the pre-confirmed, publicly-known demo user anyone can sign in as. Not sensitive - the webapp displays it directly on the home page."
+  value       = aws_cognito_user.demo.username
+}
+
+output "demo_user_password" {
+  description = "Password of the pre-confirmed, publicly-known demo user anyone can sign in as. Not sensitive - the webapp displays it directly on the home page."
+  # random_password's .result is always marked sensitive by the provider itself; nonsensitive()
+  # overrides that here since this one really is meant to be shown in the clear (unlike
+  # e2e_user_password below, which stays sensitive).
+  value = nonsensitive(random_password.demo_user.result)
 }

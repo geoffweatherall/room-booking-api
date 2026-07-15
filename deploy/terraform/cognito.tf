@@ -9,12 +9,17 @@ resource "aws_cognito_user_pool" "this" {
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
+  # Deliberately loose: this is a demo system, not a real business, and the whole point is to let
+  # anyone try it out via the publicly-known demo user below (see aws_cognito_user.demo) without
+  # needing to sign up first. Still requires a lowercase letter and a number at 10+ characters -
+  # exactly what that demo user's randomly-generated password satisfies - just not the
+  # upper-case/symbol mixing a real product would want.
   password_policy {
-    minimum_length    = 8
+    minimum_length    = 10
     require_lowercase = true
-    require_uppercase = true
+    require_uppercase = false
     require_numbers   = true
-    require_symbols   = true
+    require_symbols   = false
   }
 
   account_recovery_setting {
@@ -108,6 +113,37 @@ resource "aws_cognito_user" "e2e" {
 
   attributes = {
     email          = "e2e-tests@example.com"
+    email_verified = "true"
+  }
+}
+
+# Password for the demo user below: random (like random_password.e2e_user above) rather than a
+# fixed, guessable word - an earlier fixed value ("demo1234") turned out to be on Google's list of
+# known-compromised passwords, which Cognito doesn't check for but is still worth avoiding.
+# Restricted to lowercase letters and digits (no uppercase/symbols) purely so it's easy to read
+# and type by hand; it's shown in the clear on the webapp's home page regardless, so there's no
+# security reason to make it harder to type.
+resource "random_password" "demo_user" {
+  length      = 10
+  min_lower   = 1
+  min_numeric = 1
+  upper       = false
+  special     = false
+}
+
+# Pre-confirmed, publicly-known demo user: this is a demo system rather than a real business, so
+# anyone can sign in as this user - no sign-up needed - to try out the app. The webapp's home page
+# fetches these credentials at deploy time (see room-booking-webapp's deploy.sh) and displays them
+# to signed-out visitors, offering a one-click sign-in. Deliberately NOT gated by environment name
+# (e.g. unlike reset/sample-data-generator) - this demo user is meant to exist even in a
+# "production" deployment, since making the app easy to try is the point.
+resource "aws_cognito_user" "demo" {
+  user_pool_id = aws_cognito_user_pool.this.id
+  username     = "demo@room-booking.com"
+  password     = random_password.demo_user.result
+
+  attributes = {
+    email          = "demo@room-booking.com"
     email_verified = "true"
   }
 }
