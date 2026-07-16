@@ -22,6 +22,7 @@ data "aws_iam_policy_document" "lambda_dynamodb_access" {
   statement {
     actions = [
       "dynamodb:GetItem",
+      "dynamodb:BatchGetItem",
       "dynamodb:PutItem",
       "dynamodb:DeleteItem",
       "dynamodb:Scan",

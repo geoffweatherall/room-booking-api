@@ -1,6 +1,6 @@
 package com.roombooking.handler;
 
-import com.roombooking.model.Booking;
+import com.roombooking.model.BookingRecord;
 import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.Test;
@@ -16,19 +16,17 @@ class ListBookingsHandlerTest {
     private static final Map<String, Object> AUTHENTICATED_EVENT = Map.of("identity", Map.of("sub", "test-user"));
 
     @Test
-    void returnsAllBookingsInTableWithNestedRoomAndPeople() {
+    void returnsAllBookingsWithRoomAndPeopleResolvedFromTheirIds() {
         final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
-        final Booking booking = new Booking(
-                "1",
-                new Room("r1", "Conference A", 8),
-                new Person("p1", "Ada Lovelace"),
-                List.of(new Person("p2", "Alan Turing")),
-                "Weekly sync",
-                "2026-07-01T14:30:00",
-                "2026-07-01T15:00:00");
-        fakeClient.tables.put("Bookings", List.of(booking.toItem()));
+        fakeClient.tables.put("Rooms", List.of(new Room("r1", "Conference A", 8).toItem()));
+        fakeClient.tables.put("People", List.of(
+                new Person("p1", "Ada Lovelace").toItem(),
+                new Person("p2", "Alan Turing").toItem()));
+        final BookingRecord record = new BookingRecord(
+                "1", "r1", "p1", List.of("p2"), "Weekly sync", "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+        fakeClient.tables.put("Bookings", List.of(record.toItem()));
 
-        final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings");
+        final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings", "Rooms", "People");
 
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(AUTHENTICATED_EVENT, null);
@@ -54,9 +52,36 @@ class ListBookingsHandlerTest {
     }
 
     @Test
+    void resolvesTheSamePersonOrRoomOnlyOnceAcrossMultipleBookings() {
+        final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
+        fakeClient.tables.put("Rooms", List.of(new Room("r1", "Conference A", 8).toItem()));
+        fakeClient.tables.put("People", List.of(
+                new Person("p1", "Ada Lovelace").toItem(),
+                new Person("p2", "Alan Turing").toItem()));
+        fakeClient.tables.put("Bookings", List.of(
+                new BookingRecord("1", "r1", "p1", List.of("p2"), "Weekly sync",
+                        "2026-07-01T14:30:00", "2026-07-01T15:00:00").toItem(),
+                new BookingRecord("2", "r1", "p2", List.of("p1"), "Follow-up",
+                        "2026-07-01T15:00:00", "2026-07-01T15:30:00").toItem()));
+
+        final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings", "Rooms", "People");
+
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(AUTHENTICATED_EVENT, null);
+
+        assertEquals(2, result.size());
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> firstOrganiser = (Map<String, Object>) result.get(0).get("organiser");
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> secondOrganiser = (Map<String, Object>) result.get(1).get("organiser");
+        assertEquals("Ada Lovelace", firstOrganiser.get("name"));
+        assertEquals("Alan Turing", secondOrganiser.get("name"));
+    }
+
+    @Test
     void returnsEmptyListWhenTableIsEmpty() {
         final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
-        final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings");
+        final ListBookingsHandler handler = new ListBookingsHandler(fakeClient, "Bookings", "Rooms", "People");
 
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> result = (List<Map<String, Object>>) handler.handleRequest(AUTHENTICATED_EVENT, null);
@@ -66,7 +91,7 @@ class ListBookingsHandlerTest {
 
     @Test
     void rejectsUnauthenticatedRequests() {
-        final ListBookingsHandler handler = new ListBookingsHandler(new FakeDynamoDbClient(), "Bookings");
+        final ListBookingsHandler handler = new ListBookingsHandler(new FakeDynamoDbClient(), "Bookings", "Rooms", "People");
 
         assertThrows(IllegalStateException.class, () -> handler.handleRequest(Map.of(), null));
     }

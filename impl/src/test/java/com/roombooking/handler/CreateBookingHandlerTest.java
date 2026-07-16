@@ -1,7 +1,7 @@
 package com.roombooking.handler;
 
-import com.roombooking.model.Booking;
 import com.roombooking.model.BookingError;
+import com.roombooking.model.BookingRecord;
 import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.BeforeEach;
@@ -213,9 +213,8 @@ class CreateBookingHandlerTest {
 
     @Test
     void rejectsWhenRoomAlreadyBookedForOverlappingTime() {
-        final Booking existing = new Booking("existing-booking", new Room("room-1", "Conference A", 3),
-                new Person("organiser-1", "Ada Lovelace"), List.of(), "Existing meeting",
-                "2026-07-01T14:00:00", "2026-07-01T15:00:00");
+        final BookingRecord existing = new BookingRecord("existing-booking", "room-1", "organiser-1", List.of(),
+                "Existing meeting", "2026-07-01T14:00:00", "2026-07-01T15:00:00");
         fakeClient.tables.put("Bookings", List.of(existing.toItem()));
 
         final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"),
@@ -232,9 +231,8 @@ class CreateBookingHandlerTest {
 
     @Test
     void allowsBackToBackBookingsThatDoNotOverlap() {
-        final Booking existing = new Booking("existing-booking", new Room("room-1", "Conference A", 3),
-                new Person("organiser-1", "Ada Lovelace"), List.of(), "Existing meeting",
-                "2026-07-01T14:00:00", "2026-07-01T14:30:00");
+        final BookingRecord existing = new BookingRecord("existing-booking", "room-1", "organiser-1", List.of(),
+                "Existing meeting", "2026-07-01T14:00:00", "2026-07-01T14:30:00");
         fakeClient.tables.put("Bookings", new ArrayList<>(List.of(existing.toItem())));
 
         final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"),

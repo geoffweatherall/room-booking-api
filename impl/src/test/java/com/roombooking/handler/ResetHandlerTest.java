@@ -1,6 +1,6 @@
 package com.roombooking.handler;
 
-import com.roombooking.model.Booking;
+import com.roombooking.model.BookingRecord;
 import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.Test;
@@ -25,8 +25,7 @@ class ResetHandlerTest {
         fakeClient.tables.put("People", new ArrayList<>(List.of(
                 new Person("person-1", "Ada Lovelace").toItem())));
         fakeClient.tables.put("Bookings", new ArrayList<>(List.of(
-                new Booking("booking-1", new Room("room-1", "Conference A", 8),
-                        new Person("person-1", "Ada Lovelace"), List.of(), "Weekly sync",
+                new BookingRecord("booking-1", "room-1", "person-1", List.of(), "Weekly sync",
                         "2026-07-01T14:30:00", "2026-07-01T15:00:00").toItem())));
 
         final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");

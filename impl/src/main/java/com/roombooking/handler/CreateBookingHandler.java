@@ -5,6 +5,7 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.roombooking.dynamo.DynamoDbClientProvider;
 import com.roombooking.model.Booking;
 import com.roombooking.model.BookingError;
+import com.roombooking.model.BookingRecord;
 import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -115,12 +116,14 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
             return result;
         }
 
-        final Booking booking = new Booking(UUID.randomUUID().toString(), room, organiser, attendees, subject, startTimeText, endTimeText);
+        final String id = UUID.randomUUID().toString();
+        final BookingRecord record = new BookingRecord(id, roomId, organiserId, attendeeIds, subject, startTimeText, endTimeText);
         dynamoDbClient.putItem(PutItemRequest.builder()
                 .tableName(bookingsTableName)
-                .item(booking.toItem())
+                .item(record.toItem())
                 .build());
 
+        final Booking booking = new Booking(id, room, organiser, attendees, subject, startTimeText, endTimeText);
         result.put("booking", booking.toResponseMap());
         result.put("errors", errors);
         return result;
@@ -174,8 +177,8 @@ public class CreateBookingHandler implements RequestHandler<Map<String, Object>,
     private boolean roomHasOverlappingBooking(final String roomId, final LocalDateTime startTime, final LocalDateTime endTime) {
         final ScanResponse response = dynamoDbClient.scan(ScanRequest.builder().tableName(bookingsTableName).build());
         return response.items().stream()
-                .map(Booking::fromItem)
-                .filter(existing -> existing.room().id().equals(roomId))
+                .map(BookingRecord::fromItem)
+                .filter(existing -> existing.roomId().equals(roomId))
                 .anyMatch(existing -> {
                     final LocalDateTime existingStart = LocalDateTime.parse(existing.startTime());
                     final LocalDateTime existingEnd = LocalDateTime.parse(existing.endTime());

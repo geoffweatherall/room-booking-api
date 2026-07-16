@@ -16,7 +16,7 @@ All `id` values are server-generated UUIDs; clients never supply ids on creation
 
 ### Storage
 
-Each entity has its own DynamoDB table (`room-booking-rooms`, `room-booking-people`, `room-booking-bookings`), keyed by `id`. Bookings are stored **denormalised**: the full room, organiser, and attendee objects are embedded in the booking item at creation time, so a booking is a snapshot — later changes to a room or person do not flow through to existing bookings.
+Each entity has its own DynamoDB table (`room-booking-rooms`, `room-booking-people`, `room-booking-bookings`), keyed by `id`. Bookings are stored **normalised**: a booking item holds only `roomId`, `organiserId`, and `attendeeIds`, not the room/person objects themselves, so later changes to a room or person are reflected immediately in every booking that references it. [ListBookingsHandler](impl/src/main/java/com/roombooking/handler/ListBookingsHandler.java) resolves those ids back into full `Room`/`Person` objects for the GraphQL response using [BatchLoader](impl/src/main/java/com/roombooking/dynamo/BatchLoader.java), which deduplicates ids across all bookings first (so a room or person referenced by many bookings is fetched once, via `BatchGetItem`) and fetches the rooms table and people table concurrently.
 
 ### API operations
 
