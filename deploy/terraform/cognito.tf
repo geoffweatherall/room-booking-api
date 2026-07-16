@@ -147,3 +147,22 @@ resource "aws_cognito_user" "demo" {
     email_verified = "true"
   }
 }
+
+# The demo user above is created directly by Terraform rather than through the sign-up/confirm
+# API calls, so it never fires PostConfirmationCreatePersonHandler (see "Sign-up creates a linked
+# Person" in the README) and would otherwise have no Person - showing up nameless in the webapp
+# and being wiped by every Mutation.reset, since reset only preserves people with a cognitoSub.
+# This writes one directly, in the same shape as Person.toItem(), linked via cognitoSub to
+# aws_cognito_user.demo's sub.
+resource "random_uuid" "demo_person_id" {}
+
+resource "aws_dynamodb_table_item" "demo_person" {
+  table_name = aws_dynamodb_table.people.name
+  hash_key   = aws_dynamodb_table.people.hash_key
+
+  item = jsonencode({
+    id         = { S = random_uuid.demo_person_id.result }
+    name       = { S = "Demo Strater" }
+    cognitoSub = { S = aws_cognito_user.demo.sub }
+  })
+}
