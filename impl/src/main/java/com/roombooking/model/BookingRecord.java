@@ -12,9 +12,27 @@ import module java.base;
 public record BookingRecord(String id, String roomId, String organiserId, List<String> attendeeIds, String subject, String startTime,
         String endTime) {
 
+    /**
+     * Constant hash key for the bucket-startTime-index GSI (see dynamodb.tf) - there's no other
+     * partitioning dimension for "every booking's startTime", so every item shares this value.
+     */
+    private static final String BUCKET = "ALL";
+
+    /**
+     * Canonical, always-19-character format startTime/endTime are stored in, e.g.
+     * "2026-07-01T09:00:00". CreateBookingHandler formats every stored value with this rather
+     * than trusting the client's raw input text, so the result is guaranteed fixed-width and
+     * therefore lexicographically sortable as a plain string - required for the range queries
+     * ListBookingsHandler and the overlap check run against startTime/endTime and the
+     * booking-participants table's sortKey. Plain LocalDateTime.toString() isn't fixed-width: it
+     * omits ":ss" when seconds are zero (e.g. midnight), which would break those comparisons.
+     */
+    public static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
     public Map<String, AttributeValue> toItem() {
         final Map<String, AttributeValue> item = new HashMap<>();
         item.put("id", AttributeValue.builder().s(id).build());
+        item.put("bucket", AttributeValue.builder().s(BUCKET).build());
         item.put("roomId", AttributeValue.builder().s(roomId).build());
         item.put("organiserId", AttributeValue.builder().s(organiserId).build());
         item.put("attendeeIds", AttributeValue.builder()

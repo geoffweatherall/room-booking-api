@@ -5,9 +5,10 @@ locals {
   # (e.g. undeploy.sh without ever having run deploy.sh) instead of erroring out.
   lambda_jar_hash = fileexists(local.lambda_jar_path) ? filebase64sha256(local.lambda_jar_path) : null
   lambda_env_vars = {
-    ROOMS_TABLE_NAME    = aws_dynamodb_table.rooms.name
-    PEOPLE_TABLE_NAME   = aws_dynamodb_table.people.name
-    BOOKINGS_TABLE_NAME = aws_dynamodb_table.bookings.name
+    ROOMS_TABLE_NAME                = aws_dynamodb_table.rooms.name
+    PEOPLE_TABLE_NAME               = aws_dynamodb_table.people.name
+    BOOKINGS_TABLE_NAME             = aws_dynamodb_table.bookings.name
+    BOOKING_PARTICIPANTS_TABLE_NAME = aws_dynamodb_table.booking_participants.name
   }
 }
 

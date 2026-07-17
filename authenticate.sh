@@ -20,6 +20,8 @@
 #   DEMO_USER_PASSWORD         Password for that user (not a secret - it's shown in the webapp UI)
 #   AWS_REGION                 Region this environment is deployed into
 #   PEOPLE_TABLE_NAME          DynamoDB table name for Person records
+#   BOOKINGS_TABLE_NAME        DynamoDB table name for Booking records
+#   BOOKING_PARTICIPANTS_TABLE_NAME  DynamoDB table name for the booking-participants join index
 #
 # Must be SOURCED, not executed, so the exports persist in your shell:
 #   source authenticate.sh <environment>
@@ -79,11 +81,13 @@ if [[ -z "${_authenticate_failed}" ]]; then
     _authenticate_read_output DEMO_USER_EMAIL demo_user_email &&
     _authenticate_read_output DEMO_USER_PASSWORD demo_user_password &&
     _authenticate_read_output AWS_REGION aws_region &&
-    _authenticate_read_output PEOPLE_TABLE_NAME people_table_name
+    _authenticate_read_output PEOPLE_TABLE_NAME people_table_name &&
+    _authenticate_read_output BOOKINGS_TABLE_NAME bookings_table_name &&
+    _authenticate_read_output BOOKING_PARTICIPANTS_TABLE_NAME booking_participants_table_name
 fi
 
 if [[ -z "${_authenticate_failed}" ]]; then
-  echo "Exported GRAPHQL_API_URL, the COGNITO_*/E2E_*/DEMO_* authentication variables, AWS_REGION, and PEOPLE_TABLE_NAME for '${_authenticate_environment}'."
+  echo "Exported GRAPHQL_API_URL, the COGNITO_*/E2E_*/DEMO_* authentication variables, AWS_REGION, PEOPLE_TABLE_NAME, BOOKINGS_TABLE_NAME, and BOOKING_PARTICIPANTS_TABLE_NAME for '${_authenticate_environment}'."
 fi
 
 unset -f _authenticate_read_output

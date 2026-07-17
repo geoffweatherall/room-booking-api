@@ -1,5 +1,6 @@
 package com.roombooking.handler;
 
+import com.roombooking.model.BookingParticipant;
 import com.roombooking.model.BookingRecord;
 import com.roombooking.model.Person;
 import com.roombooking.model.Room;
@@ -24,11 +25,13 @@ class ResetHandlerTest {
                 new Room("room-2", "Conference B", 4).toItem())));
         fakeClient.tables.put("People", new ArrayList<>(List.of(
                 new Person("person-1", "Ada Lovelace").toItem())));
-        fakeClient.tables.put("Bookings", new ArrayList<>(List.of(
-                new BookingRecord("booking-1", "room-1", "person-1", List.of(), "Weekly sync",
-                        "2026-07-01T14:30:00", "2026-07-01T15:00:00").toItem())));
+        final BookingRecord booking = new BookingRecord("booking-1", "room-1", "person-1", List.of(), "Weekly sync",
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+        fakeClient.tables.put("Bookings", new ArrayList<>(List.of(booking.toItem())));
+        fakeClient.tables.put("BookingParticipants", new ArrayList<>(
+                BookingParticipant.allFor(booking).stream().map(BookingParticipant::toItem).toList()));
 
-        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
+        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings", "BookingParticipants");
 
         final Object result = handler.handleRequest(AUTHENTICATED_EVENT, null);
 
@@ -36,6 +39,7 @@ class ResetHandlerTest {
         assertTrue(fakeClient.tables.get("Rooms").isEmpty());
         assertTrue(fakeClient.tables.get("People").isEmpty());
         assertTrue(fakeClient.tables.get("Bookings").isEmpty());
+        assertTrue(fakeClient.tables.get("BookingParticipants").isEmpty());
     }
 
     @Test
@@ -45,7 +49,7 @@ class ResetHandlerTest {
                 new Person("guest-1", "Ada Lovelace").toItem(),
                 new Person("linked-1", "Grace Hopper", "cognito-sub-123").toItem())));
 
-        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
+        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings", "BookingParticipants");
 
         final Object result = handler.handleRequest(AUTHENTICATED_EVENT, null);
 
@@ -58,7 +62,7 @@ class ResetHandlerTest {
     @Test
     void succeedsWhenTablesAreAlreadyEmpty() {
         final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
-        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
+        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings", "BookingParticipants");
 
         final Object result = handler.handleRequest(AUTHENTICATED_EVENT, null);
 
@@ -69,7 +73,7 @@ class ResetHandlerTest {
     void rejectsUnauthenticatedRequests() {
         final FakeDynamoDbClient fakeClient = new FakeDynamoDbClient();
         fakeClient.tables.put("Rooms", new ArrayList<>(List.of(new Room("room-1", "Conference A", 8).toItem())));
-        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings");
+        final ResetHandler handler = new ResetHandler(fakeClient, "Rooms", "People", "Bookings", "BookingParticipants");
 
         assertThrows(IllegalStateException.class, () -> handler.handleRequest(Map.of(), null));
         assertEquals(1, fakeClient.tables.get("Rooms").size());

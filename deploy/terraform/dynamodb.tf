@@ -48,4 +48,77 @@ resource "aws_dynamodb_table" "bookings" {
     name = "id"
     type = "S"
   }
+
+  # Every booking now spans a single calendar day (see the SpansMultipleDays validation rule in
+  # CreateBookingHandler), which is what makes both indexes below exact rather than approximate:
+  # a booking can only overlap a window or a room/day if its own startTime falls in the matching
+  # range, there's no cross-midnight case to account for.
+
+  # bucket is a constant ("ALL") written on every item purely to give this GSI a hash key -
+  # Query.bookings' date-range filter (no personId) wants "every booking whose startTime falls in
+  # [from, to)" with no other partitioning dimension, and DynamoDB requires a hash key on every
+  # GSI. A single constant partition is fine at this project's scale (see the README's cost
+  # model); it would need bucketing by month or similar to spread load at real scale.
+  attribute {
+    name = "bucket"
+    type = "S"
+  }
+
+  attribute {
+    name = "startTime"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "bucket-startTime-index"
+    hash_key        = "bucket"
+    range_key       = "startTime"
+    projection_type = "ALL"
+  }
+
+  # Lets CreateBookingHandler's overlap check (roomHasOverlappingBooking) query "this room's
+  # bookings on this day" via begins_with(startTime, datePrefix) instead of scanning every
+  # booking ever created.
+  attribute {
+    name = "roomId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "roomId-startTime-index"
+    hash_key        = "roomId"
+    range_key       = "startTime"
+    projection_type = "ALL"
+  }
+}
+
+# Denormalised join index resolving "which bookings is this person organiser of or an attendee
+# on" - attendeeIds is a list on the booking item, and DynamoDB keys must be scalars, so that
+# can't be answered with a GSI on the bookings table itself. One item is written here per
+# (booking, participant) pair - the organiser plus every attendee - alongside the booking item
+# itself, in a single TransactWriteItems call in CreateBookingHandler, so the two can never drift
+# under normal operation. The bookings table remains the source of truth; this table is a derived
+# index that room-booking-tools/database-repair's RebuildBookingParticipantsRepair can
+# regenerate from it (needed once when this table is first introduced against an environment that
+# already has bookings, and as a safety net against any drift).
+resource "aws_dynamodb_table" "booking_participants" {
+  name         = "${local.resource_prefix}-booking-participants"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "personId"
+  range_key    = "sortKey"
+
+  attribute {
+    name = "personId"
+    type = "S"
+  }
+
+  # startTime + "#" + bookingId. LocalDateTime's ISO-8601 string form (with the canonical
+  # fixed-width formatting CreateBookingHandler stores rather than trusting client-supplied text -
+  # see its DATE_TIME_FORMAT) is lexicographically sortable, so a plain string range query on this
+  # sort key correctly answers "this person's bookings starting in [from, to)". Appending the
+  # bookingId keeps the key unique even if two of a person's bookings start at the same instant.
+  attribute {
+    name = "sortKey"
+    type = "S"
+  }
 }

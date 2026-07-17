@@ -13,6 +13,16 @@ output "people_table_name" {
   value       = aws_dynamodb_table.people.name
 }
 
+output "bookings_table_name" {
+  description = "DynamoDB table name for Booking records - for tools that need direct read/write access (e.g. room-booking-tools/database-repair), not exposed via the GraphQL API."
+  value       = aws_dynamodb_table.bookings.name
+}
+
+output "booking_participants_table_name" {
+  description = "DynamoDB table name for the booking-participants join index - for tools that need direct read/write access (e.g. room-booking-tools/database-repair's RebuildBookingParticipantsRepair), not exposed via the GraphQL API."
+  value       = aws_dynamodb_table.booking_participants.name
+}
+
 output "cognito_user_pool_id" {
   description = "Id of the Cognito user pool that authenticates API callers."
   value       = aws_cognito_user_pool.this.id

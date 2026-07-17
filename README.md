@@ -10,19 +10,52 @@ The GraphQL schema lives in [api/room-booking.graphql](api/room-booking.graphql)
 
 - **Room** — `id`, `name`, `capacity`. Capacity is the total number of people the room holds (organiser + attendees).
 - **Person** — `id`, `name`. Also has a backend-only `cognitoSub` attribute, not exposed over GraphQL: it's set to the Cognito user's `sub` for a Person created automatically on sign-up (see [Sign-up creates a linked Person](#sign-up-creates-a-linked-person)), and left unset for people added directly (e.g. guests with no login), so a future account-deletion flow can find and remove the Person linked to a deleted Cognito user.
-- **Booking** — `id`, `room`, `organiser` (a Person), `attendees` (list of Person), `subject`, `startTime`, `endTime`. `subject` must not be null or blank. Times are ISO-8601 local date-times with no time-zone offset (`java.time.LocalDateTime` semantics), e.g. `2026-07-01T14:30:00`, and must fall on a 5-minute boundary.
+- **Booking** — `id`, `room`, `organiser` (a Person), `attendees` (list of Person), `subject`, `startTime`, `endTime`. `subject` must not be null or blank. Times are ISO-8601 local date-times with no time-zone offset (`java.time.LocalDateTime` semantics), e.g. `2026-07-01T14:30:00`, must fall on a 5-minute boundary, and `startTime`/`endTime` must fall on the same calendar date — a booking cannot span midnight (see [Validation](#validation)).
 
 All `id` values are server-generated UUIDs; clients never supply ids on creation.
 
 ### Storage
 
-Each entity has its own DynamoDB table (`room-booking-rooms`, `room-booking-people`, `room-booking-bookings`), keyed by `id`. Bookings are stored **normalised**: a booking item holds only `roomId`, `organiserId`, and `attendeeIds`, not the room/person objects themselves, so later changes to a room or person are reflected immediately in every booking that references it. [ListBookingsHandler](impl/src/main/java/com/roombooking/handler/ListBookingsHandler.java) resolves those ids back into full `Room`/`Person` objects for the GraphQL response using [BatchLoader](impl/src/main/java/com/roombooking/dynamo/BatchLoader.java), which deduplicates ids across all bookings first (so a room or person referenced by many bookings is fetched once, via `BatchGetItem`) and fetches the rooms table and people table concurrently.
+Rooms, people, and bookings each have their own DynamoDB table (`room-booking-rooms`, `room-booking-people`, `room-booking-bookings`), keyed by `id`. Bookings are stored **normalised**: a booking item holds only `roomId`, `organiserId`, and `attendeeIds`, not the room/person objects themselves, so later changes to a room or person are reflected immediately in every booking that references it. [ListBookingsHandler](impl/src/main/java/com/roombooking/handler/ListBookingsHandler.java) resolves those ids back into full `Room`/`Person` objects for the GraphQL response using [BatchLoader](impl/src/main/java/com/roombooking/dynamo/BatchLoader.java), which deduplicates ids across all bookings first (so a room or person referenced by many bookings is fetched once, via `BatchGetItem`) and fetches the rooms table and people table concurrently.
+
+`startTime`/`endTime` are stored in a canonical, always-19-character format (`BookingRecord.DATE_TIME_FORMAT`, e.g. `2026-07-01T09:00:00`) rather than the client's raw input text, so they sort correctly as plain strings — this is what makes the range queries below exact string comparisons rather than needing to parse every candidate item. It's also why a booking can't span midnight (see [Validation](#validation)): every booking is guaranteed to fall within a single calendar day, so "does this booking's date match" and "could this booking possibly overlap that window" are always answerable from `startTime` alone, with no cross-midnight case to account for.
+
+#### Querying bookings by date range and/or person, without scanning
+
+`Query.bookings(filter: BookingsFilter)` accepts an optional `fromStartTime`/`toEndTime` window and/or `personId` (matching organiser or attendee). `ListBookingsHandler` picks one of four DynamoDB access patterns depending on which filter fields are present, so it never reads more than the matching bookings:
+
+| Filter | Access pattern |
+|---|---|
+| none | `Scan` the bookings table — the caller genuinely wants everything, so this isn't a workaround |
+| date range only | `Query` the bookings table's `bucket-startTime-index` GSI (hash key is a constant `"ALL"`, range key `startTime` — there's no other partitioning dimension for "every booking's startTime") |
+| `personId` only | `Query` the `room-booking-booking-participants` table (see below), hash key `personId`, no range condition |
+| both | `Query` the same table with a range condition on its sort key |
+
+**Why `bucket-startTime-index`'s hash key is a constant.** The date-range-only query means "every booking in this window," not "every booking for this room" or "for this person" — there's no field to naturally shard by. DynamoDB requires every GSI to have a hash key, and a `Query` can only ever target one hash key value per call, so the only way to answer an arbitrary date range with a *single* `Query` (rather than, say, one call per room) is to give every item the same hash key value. That collapses the GSI to one logical partition, sorted entirely by the sort key `startTime` — functionally a sorted index over the whole table. The trade-off is that a single partition is capped by DynamoDB's per-partition limits (~3,000 RCU / 1,000 WCU / 10 GB) — fine at this project's scale, but bucketing by something coarser (e.g. year-month) would be the next step at real scale, at the cost of a query spanning a bucket boundary needing two `Query` calls merged in Java instead of one. Contrast with `roomId-startTime-index` below, whose hash key is `roomId`: the overlap check genuinely does have a partitioning dimension (it always asks "bookings for *this* room"), so it isn't subject to this limit at all.
+
+Both of the range-bounded queries (date-only, against `bucket-startTime-index`; `personId`+range, against booking-participants) bound the key condition at the start of `fromStartTime`'s calendar day rather than `fromStartTime` itself — a safe bound (not a heuristic) because a booking confined to one day can't still be running from a previous day. DynamoDB only allows a single condition on a sort key, so both ends of that bound go through one `BETWEEN` in the key condition rather than two separate comparators — and `BETWEEN` is inclusive on both ends, which the two queries handle differently:
+
+- **`bucket-startTime-index`**'s sort key *is* `startTime`, and DynamoDB rejects a `FilterExpression` that references an index's own key attributes — so the exclusive upper bound can't be expressed as `startTime < toEndTime` in a filter (that's not a hypothetical: it's exactly what an earlier version of this code tried, and DynamoDB rejected it with "Filter Expression can only contain non-primary key attributes"). `endTime` isn't part of this index's key schema, so it's fine in a `FilterExpression` (`endTime > fromStartTime`, for the low-end overlap check), but the upper bound has to be enforced in Java after the query returns, by dropping any item whose `startTime` exactly equals `toEndTime`.
+- **booking-participants**' sort key is the compound string `startTime + "#" + bookingId` (see below), so a bare `toEndTime` string as the `BETWEEN` upper bound is naturally exclusive there already — every real row's key is strictly longer, and therefore greater, than the bare boundary string — so no extra Java-side step is needed for that one.
+
+(Separately: `bucket` is also a DynamoDB reserved word, so `#bucket = :bucket` needs an `ExpressionAttributeNames` alias — a literal `bucket = :bucket` is rejected the same way as the `startTime` filter above.)
+
+This still costs read capacity for the (small, date-bounded) candidates either check discards, but neither ever scans the whole table.
+
+`CreateBookingHandler`'s overlap check (`roomHasOverlappingBooking`) uses `roomId-startTime-index` with `begins_with(startTime, datePrefix)` instead: since two bookings for the same room can only possibly overlap if they share a date, this returns exactly that room's bookings for that one day, which are then checked for a real time overlap in Java.
+
+#### The booking-participants table
+
+`attendeeIds` is a list on the booking item, and DynamoDB keys must be scalars, so "which bookings is this person organiser of or an attendee on" can't be answered with a GSI on the bookings table itself. `room-booking-booking-participants` (hash key `personId`, range key `sortKey` = `startTime` + `"#"` + `bookingId`) exists purely to answer that: one row per (booking, participant) pair — the organiser plus every attendee — written by [BookingParticipant](impl/src/main/java/com/roombooking/model/BookingParticipant.java). `CreateBookingHandler` writes a booking and all of its participant rows in a single `TransactWriteItems` call, so the two can never drift under normal operation.
+
+The bookings table remains the source of truth; booking-participants is a **derived index**. [room-booking-tools/database-repair](https://github.com/geoffweatherall/room-booking-tools/tree/main/database-repair)'s `RebuildBookingParticipantsRepair` regenerates it from the bookings table — needed once when this table is introduced against an environment that already has bookings (existing bookings have no participant rows until then), and as a safety net against drift.
 
 ### API operations
 
 | Operation | Kind | Notes |
 |---|---|---|
-| `rooms`, `people`, `bookings` | Query | List all items of each type |
+| `rooms`, `people` | Query | List all items of each type |
+| `bookings(filter: BookingsFilter)` | Query | Lists bookings, optionally narrowed by a `fromStartTime`/`toEndTime` window and/or `personId` (organiser or attendee) — see [Querying bookings by date range and/or person](#querying-bookings-by-date-range-andor-person-without-scanning) |
 | `myPerson` | Query | Returns the `Person` linked to the caller's own Cognito account (via `identity.sub`), or `null` if none exists |
 | `createRoom(room)` | Mutation | Returns `CreateRoomResult` (room or validation errors) |
 | `createPerson(person)` | Mutation | Returns the created `Person`; no validation |
@@ -40,8 +73,8 @@ Client ──HTTP/GraphQL──▶ AWS AppSync ──direct Lambda resolver─�
 - **AWS AppSync** hosts the GraphQL endpoint and validates requests against the schema. Authentication is a **Cognito user pool** — every request must carry a valid JWT (see [Authentication](#authentication)). Every query and mutation field has its own resolver.
 - Each resolver is a **direct Lambda resolver**: the request template forwards the whole AppSync context (`$ctx`) as the Lambda payload, and the response template returns the Lambda result as-is. There is no VTL mapping logic — all behaviour lives in Java.
 - **One Lambda function per GraphQL field** (8 in total: list-rooms, list-people, list-bookings, create-room, create-person, my-person, create-booking, reset), plus one more that isn't a GraphQL resolver at all: `post-confirmation-create-person`, a Cognito trigger (see below). All are built from a single shaded jar (`impl/target/room-booking-lambda.jar`), differing only in the handler class, e.g. `com.roombooking.handler.CreateBookingHandler`. Runtime is Java 25, 512 MB, 15 s timeout.
-- Handlers read the table names from environment variables (`ROOMS_TABLE_NAME`, `PEOPLE_TABLE_NAME`, `BOOKINGS_TABLE_NAME`) set by Terraform, and use the AWS SDK v2 DynamoDB client.
-- **DynamoDB** stores the data in three on-demand (`PAY_PER_REQUEST`) tables.
+- Handlers read the table names from environment variables (`ROOMS_TABLE_NAME`, `PEOPLE_TABLE_NAME`, `BOOKINGS_TABLE_NAME`, `BOOKING_PARTICIPANTS_TABLE_NAME`) set by Terraform, and use the AWS SDK v2 DynamoDB client.
+- **DynamoDB** stores the data in four on-demand (`PAY_PER_REQUEST`) tables (see [Storage](#storage)).
 - All resources are named with the `room-booking` prefix and created in `us-east-1` by default (see [deploy/terraform/variables.tf](deploy/terraform/variables.tf)).
 
 ## Sign-up creates a linked Person
@@ -60,7 +93,7 @@ Note: the Terraform-managed e2e test user and demo user ([cognito.tf](deploy/ter
 
 The webapp shows the signed-in user's name (see [MyPersonHandler](impl/src/main/java/com/roombooking/handler/MyPersonHandler.java)/`Query.myPerson`) by reading it live from the `Person` record rather than from the Cognito JWT, so a future "change my name" feature only has to write one place. The `cognitoSub-index` GSI has `ALL` projection (not `KEYS_ONLY`) specifically so this resolver can read the full item straight off the index in one request.
 
-This was chosen over customizing the `name` claim in the ID token with a Pre Token Generation Lambda trigger. That approach would also work, but a token's claims are only refreshed on next sign-in/token-refresh (up to the token's ~1 hour lifetime), so a rename would appear stale for up to an hour; reading `myPerson` on demand is always current. It also avoids a subtler correctness gap: `ConfirmSignUp` invokes the `PostConfirmation` trigger synchronously and Cognito won't authenticate an unconfirmed user, so the trigger that creates the Person is guaranteed to have *run* before any sign-in — but not guaranteed to have *succeeded* (its DynamoDB write is deliberately swallowed on error, see above) or to be *visible yet* (DynamoDB GSI reads are only eventually consistent, and the webapp signs the user in immediately after confirming). A Pre Token Generation trigger racing that same window could bake a missing/stale name into a token for up to an hour; `myPerson` just returns `null` for that one moment and the webapp's existing email/JWT-name fallback covers it until the next query.
+This was chosen over customising the `name` claim in the ID token with a Pre Token Generation Lambda trigger. That approach would also work, but a token's claims are only refreshed on next sign-in/token-refresh (up to the token's ~1 hour lifetime), so a rename would appear stale for up to an hour; reading `myPerson` on demand is always current. It also avoids a subtler correctness gap: `ConfirmSignUp` invokes the `PostConfirmation` trigger synchronously and Cognito won't authenticate an unconfirmed user, so the trigger that creates the Person is guaranteed to have *run* before any sign-in — but not guaranteed to have *succeeded* (its DynamoDB write is deliberately swallowed on error, see above) or to be *visible yet* (DynamoDB GSI reads are only eventually consistent, and the webapp signs the user in immediately after confirming). A Pre Token Generation trigger racing that same window could bake a missing/stale name into a token for up to an hour; `myPerson` just returns `null` for that one moment and the webapp's existing email/JWT-name fallback covers it until the next query.
 
 ## Authentication
 
@@ -153,7 +186,9 @@ Every component is configured to scale to zero, so a deployed-but-idle API costs
 
 There are no fixed-price resources (no provisioned DynamoDB capacity, no EC2/containers, no NAT gateways, no provisioned Lambda concurrency). Costs scale linearly with API call volume: each GraphQL call is one AppSync request, one Lambda invocation, and one or more DynamoDB operations.
 
-One scaling caveat: `createBooking` (overlap check) and `reset` **scan** the whole bookings/tables rather than using an index, so their DynamoDB read cost grows with total stored data, not just with call volume. Fine at demo scale; would need a GSI at real scale.
+One scaling caveat: `reset` and an unfiltered `bookings` query still **scan** whole tables rather than using an index, so their DynamoDB read cost grows with total stored data, not just with call volume. That's an intentional trade-off for `reset` (it needs to enumerate literally everything to delete it) and for an unfiltered `bookings` call (it's asking for literally everything), but not for `createBooking`'s overlap check or a filtered `bookings` query — both of those go through the `bucket-startTime-index`/`roomId-startTime-index` GSIs or the booking-participants table instead (see [Storage](#storage)), so their cost is bounded by the size of the matching result, not total stored data.
+
+`createBooking` writes cost slightly more than one write request unit now: it writes the booking plus one booking-participants row per organiser/attendee in a single `TransactWriteItems` call, which DynamoDB bills at 2× the normal per-item write cost. For a typical small meeting (a couple of attendees) that's still a handful of write request units — a fraction of a cent even at thousands of bookings/month, negligible next to Lambda/AppSync costs.
 
 ## Validation
 
@@ -180,6 +215,7 @@ On success the entity field is populated and `errors` is empty. On failure the e
 | Error | Rule |
 |---|---|
 | `StartMissaligned` / `EndMissaligned` | Start/end time must parse as an ISO-8601 local date-time and fall exactly on a 5-minute boundary (no seconds/nanos) |
+| `SpansMultipleDays` | `startTime` and `endTime` must fall on the same calendar date — a booking cannot span midnight |
 | `RoomRequired` | `roomId` must not be blank |
 | `RoomNotFound` | `roomId` must refer to an existing room |
 | `OrganiserRequired` | `organiserId` must not be blank |

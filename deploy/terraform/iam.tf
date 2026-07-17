@@ -27,15 +27,22 @@ data "aws_iam_policy_document" "lambda_dynamodb_access" {
       "dynamodb:DeleteItem",
       "dynamodb:Scan",
       "dynamodb:Query",
+      # CreateBookingHandler writes a booking and its booking-participants rows atomically so the
+      # two can never drift under normal operation.
+      "dynamodb:TransactWriteItems",
     ]
     resources = [
       aws_dynamodb_table.rooms.arn,
       aws_dynamodb_table.people.arn,
       aws_dynamodb_table.bookings.arn,
+      aws_dynamodb_table.booking_participants.arn,
       # DynamoDB treats a table's GSIs as separate resources from the table itself, so querying
-      # the people table's cognitoSub-index (see PostConfirmationCreatePersonHandler) needs its
-      # own grant even though the handler already has access to the table.
+      # them needs its own grant even though the handler already has access to the table: the
+      # people table's cognitoSub-index (see PostConfirmationCreatePersonHandler), and the
+      # bookings table's bucket-startTime-index and roomId-startTime-index (ListBookingsHandler's
+      # filter and CreateBookingHandler's overlap check, respectively).
       "${aws_dynamodb_table.people.arn}/index/*",
+      "${aws_dynamodb_table.bookings.arn}/index/*",
     ]
   }
 }

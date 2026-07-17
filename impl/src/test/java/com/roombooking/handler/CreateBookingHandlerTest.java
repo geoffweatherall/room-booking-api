@@ -6,6 +6,7 @@ import com.roombooking.model.Person;
 import com.roombooking.model.Room;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import module java.base;
 
@@ -24,7 +25,7 @@ class CreateBookingHandlerTest {
     @BeforeEach
     void setUp() {
         fakeClient = new FakeDynamoDbClient();
-        handler = new CreateBookingHandler(fakeClient, "Rooms", "People", "Bookings");
+        handler = new CreateBookingHandler(fakeClient, "Rooms", "People", "Bookings", "BookingParticipants");
 
         fakeClient.tables.put("Rooms", List.of(new Room("room-1", "Conference A", 2).toItem()));
         fakeClient.tables.put("People", List.of(
@@ -86,6 +87,36 @@ class CreateBookingHandlerTest {
         assertNotNull(booking);
         assertNotNull(booking.get("id"));
         assertEquals(1, fakeClient.tables.get("Bookings").size());
+    }
+
+    @Test
+    void writesABookingParticipantsRowForTheOrganiserAndEveryAttendee() {
+        final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"),
+                "2026-07-01T14:30:00", "2026-07-01T15:00:00");
+
+        final Map<String, Object> result = invoke(event);
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.isEmpty());
+
+        final List<Map<String, AttributeValue>> participants = fakeClient.tables.get("BookingParticipants");
+        assertEquals(2, participants.size());
+        final Set<String> personIds = participants.stream().map(item -> item.get("personId").s()).collect(Collectors.toSet());
+        assertEquals(Set.of("organiser-1", "attendee-1"), personIds);
+    }
+
+    @Test
+    void rejectsWhenStartAndEndTimeAreOnDifferentCalendarDates() {
+        final Map<String, Object> event = bookingArguments("room-1", "organiser-1", List.of("attendee-1"),
+                "2026-07-01T23:45:00", "2026-07-02T00:15:00");
+
+        final Map<String, Object> result = invoke(event);
+
+        @SuppressWarnings("unchecked")
+        final List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.contains(BookingError.SpansMultipleDays.name()));
+        assertNull(result.get("booking"));
+        assertTrue(fakeClient.tables.getOrDefault("Bookings", List.of()).isEmpty());
     }
 
     @Test

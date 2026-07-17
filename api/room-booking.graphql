@@ -6,9 +6,18 @@ schema {
 type Query {
  people: [Person!]!
  rooms: [Room!]!
- bookings: [Booking!]!
+ bookings(filter: BookingsFilter): [Booking!]!
  "The Person linked to the signed-in caller's own Cognito account, or null if none exists (e.g. the account predates automatic Person creation on sign-up, or was created without going through the confirm-sign-up flow)."
  myPerson: Person
+}
+
+"Filters for Query.bookings. All fields are optional and combine with AND; omitting the input (or all fields) returns every booking, unchanged from the default behaviour."
+input BookingsFilter {
+    "Restricts to bookings whose time range overlaps [fromStartTime, toEndTime) - i.e. startTime < toEndTime and endTime > fromStartTime, the same overlap rule createBooking already enforces. Both are ISO-8601 local date-times (java.time.LocalDateTime semantics, no time-zone offset) and must be supplied together."
+    fromStartTime: String
+    toEndTime: String
+    "Restricts to bookings where this person is the organiser or one of the attendees."
+    personId: ID
 }
 
 type Mutation {
@@ -71,9 +80,9 @@ input BookingInput {
     attendeeIds: [ID!]!
     "Must not be null or blank."
     subject: String!
-    "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T14:30:00\"."
+    "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T14:30:00\". Must be on the same calendar date as endTime - a booking cannot span midnight."
     startTime: String!
-    "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T15:00:00\"."
+    "ISO-8601 local date-time with no time-zone offset, must fall on a 5 minute boundary, e.g. \"2026-07-01T15:00:00\". Must be on the same calendar date as startTime - a booking cannot span midnight."
     endTime: String!
 }
 
@@ -87,6 +96,8 @@ type CreateBookingResult {
 enum BookingError {
     StartMissaligned
     EndMissaligned
+    "startTime and endTime fall on different calendar dates - a booking cannot span midnight."
+    SpansMultipleDays
     InsufficientCapacity
     TimeRangeUnavailable
     RoomRequired

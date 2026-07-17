@@ -7,6 +7,7 @@ package com.roombooking.model;
 public enum BookingError {
     StartMissaligned,
     EndMissaligned,
+    SpansMultipleDays,
     InsufficientCapacity,
     TimeRangeUnavailable,
     RoomRequired,
