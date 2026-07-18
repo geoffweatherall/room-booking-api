@@ -13,6 +13,12 @@ if [[ -z "${environment}" ]]; then
   echo "Usage: ./undeploy.sh <environment>   (e.g. test, production, or your own name)" >&2
   exit 1
 fi
+# See deploy.sh for why anything starting with "prod" but not exactly
+# "production" is refused outright.
+if [[ "${environment}" == prod* && "${environment}" != "production" ]]; then
+  echo "environment '${environment}' starts with 'prod' but isn't exactly 'production' - refusing, to avoid confusion with the real production environment." >&2
+  exit 1
+fi
 
 echo "Undeploying mootmaker-api environment '${environment}'..."
 

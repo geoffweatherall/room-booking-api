@@ -1,6 +1,6 @@
 output "graphql_api_url" {
-  description = "The GraphQL endpoint URL for the mootmaker API."
-  value       = aws_appsync_graphql_api.this.uris["GRAPHQL"]
+  description = "The GraphQL endpoint URL for the mootmaker API, via its custom domain (see domain.tf). The AWS-generated *.appsync-api.*.amazonaws.com URL still works too, but everything downstream (webapp, tools, acceptance tests) reads this output via authenticate.sh, so they pick up the custom domain automatically."
+  value       = "https://${local.api_domain}/graphql"
 }
 
 output "aws_region" {

@@ -156,6 +156,19 @@ multiple independent copies of the API can run in the same AWS account at
 once — see the [mootmaker project README](https://github.com/geoffweatherall/mootmaker#multi-environment-deployments)
 for the full multi-environment how-to and the reasoning behind it.
 
+### Custom domain
+
+Each environment deploys behind its own hostname under `mootmaker.com`:
+`production` gets `api.mootmaker.com`, every other environment gets
+`api.<environment>.mootmaker.com` (see [domain.tf](deploy/terraform/domain.tf)
+for why each environment provisions its own certificate rather than sharing
+one wildcard). `deploy.sh`/`undeploy.sh` refuse any environment name that
+starts with `prod` but isn't exactly `production`, to avoid a typo silently
+landing on a production-looking-but-not-actually-production subdomain.
+Requires [mootmaker-domain](https://github.com/geoffweatherall/mootmaker-domain)
+to already be deployed, with its nameservers configured at the registrar and
+delegation propagated - see that project's README.
+
 ```bash
 # Build the Lambda jar and run unit tests
 mvn -f impl/pom.xml clean package
@@ -183,6 +196,8 @@ Every component is configured to scale to zero, so a deployed-but-idle API costs
 | DynamoDB | On-demand (`PAY_PER_REQUEST`): per read/write request unit + storage | ~$0 (storage only, negligible at this scale) |
 | Cognito | Per monthly active user (10k free), plus $0.00225 per M2M token issued to the acceptance-test client (no free tier) | $0 |
 | CloudWatch Logs | Per GB ingested/stored from Lambda logs | ~$0 when idle |
+| ACM certificate (custom domain) | Free when attached to AppSync | $0 |
+| Route53 record (custom domain) | Covered by [mootmaker-domain](https://github.com/geoffweatherall/mootmaker-domain)'s hosted zone; query volume is negligible at this scale | $0 |
 
 There are no fixed-price resources (no provisioned DynamoDB capacity, no EC2/containers, no NAT gateways, no provisioned Lambda concurrency). Costs scale linearly with API call volume: each GraphQL call is one AppSync request, one Lambda invocation, and one or more DynamoDB operations.
 

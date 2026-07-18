@@ -17,6 +17,15 @@ if [[ ! "${environment}" =~ ^[a-z0-9-]+$ ]]; then
   echo "environment must contain only lowercase letters, digits, and hyphens: '${environment}'" >&2
   exit 1
 fi
+# "production" deploys to api.mootmaker.com (see deploy/terraform/domain.tf);
+# every other environment gets api.<environment>.mootmaker.com. Anything
+# starting with "prod" but not exactly "production" is refused outright,
+# rather than silently deploying to a subdomain that looks production-like
+# but isn't.
+if [[ "${environment}" == prod* && "${environment}" != "production" ]]; then
+  echo "environment '${environment}' starts with 'prod' but isn't exactly 'production' - refusing, to avoid confusion with the real production environment." >&2
+  exit 1
+fi
 
 echo "Deploying mootmaker-api to '${environment}'..."
 
