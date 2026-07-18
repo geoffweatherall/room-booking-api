@@ -1,4 +1,4 @@
-### Sample GraphQL calls against the deployed room-booking API.
+### Sample GraphQL calls against the deployed mootmaker API.
 ### The API is authenticated by a Cognito user pool: every request must carry a JWT in the
 ### Authorization header. These samples use the acceptance-test app client's OAuth2
 ### client_credentials flow to obtain one - run the "Get an access token" request FIRST,
@@ -44,13 +44,13 @@ Authorization: {{accessToken}}
   "query": "query { people { id name } }"
 }
 
-### List bookings
+### List meetings
 POST {{graphqlUrl}}
 Content-Type: application/json
 Authorization: {{accessToken}}
 
 {
-  "query": "query { bookings { id room { id name capacity } organiser { id name } attendees { id name } subject startTime endTime } }"
+  "query": "query { meetings { id room { id name capacity } organiser { id name } attendees { id name } subject startTime endTime } }"
 }
 
 ### Create a room
@@ -78,18 +78,18 @@ Authorization: {{accessToken}}
   }
 }
 
-### Create a booking
+### Create a meeting
 ### Replace roomId/organiserId/attendeeIds below with real ids from the "List rooms" / "List people" requests above.
 ### startTime/endTime must fall on a 5 minute boundary (e.g. :00, :05, :10, ...).
-### On failure, "errors" is a non-empty list of the broken rules and "booking" is null.
+### On failure, "errors" is a non-empty list of the broken rules and "meeting" is null.
 POST {{graphqlUrl}}
 Content-Type: application/json
 Authorization: {{accessToken}}
 
 {
-  "query": "mutation CreateBooking($booking: BookingInput!) { createBooking(booking: $booking) { booking { id room { id name capacity } organiser { id name } attendees { id name } subject startTime endTime } errors } }",
+  "query": "mutation CreateMeeting($meeting: MeetingInput!) { createMeeting(meeting: $meeting) { meeting { id room { id name capacity } organiser { id name } attendees { id name } subject startTime endTime } errors } }",
   "variables": {
-    "booking": {
+    "meeting": {
       "roomId": "9fa8b122-9476-439f-ae5c-e97256444891",
       "organiserId": "4d4c933e-28c9-45ca-bf7c-a96f26cfa355",
       "attendeeIds": ["78514c8d-ac39-4a8a-9f97-abeb66eba37f"],
@@ -100,7 +100,7 @@ Authorization: {{accessToken}}
   }
 }
 
-### Reset (deletes ALL stored rooms, people and bookings)
+### Reset (deletes ALL stored rooms, people and meetings)
 POST {{graphqlUrl}}
 Content-Type: application/json
 Authorization: {{accessToken}}

@@ -39,8 +39,8 @@ resource "aws_dynamodb_table" "people" {
   }
 }
 
-resource "aws_dynamodb_table" "bookings" {
-  name         = "${local.resource_prefix}-bookings"
+resource "aws_dynamodb_table" "meetings" {
+  name         = "${local.resource_prefix}-meetings"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "id"
 
@@ -49,13 +49,13 @@ resource "aws_dynamodb_table" "bookings" {
     type = "S"
   }
 
-  # Every booking now spans a single calendar day (see the SpansMultipleDays validation rule in
-  # CreateBookingHandler), which is what makes both indexes below exact rather than approximate:
-  # a booking can only overlap a window or a room/day if its own startTime falls in the matching
+  # Every meeting now spans a single calendar day (see the SpansMultipleDays validation rule in
+  # CreateMeetingHandler), which is what makes both indexes below exact rather than approximate:
+  # a meeting can only overlap a window or a room/day if its own startTime falls in the matching
   # range, there's no cross-midnight case to account for.
 
   # bucket is a constant ("ALL") written on every item purely to give this GSI a hash key -
-  # Query.bookings' date-range filter (no personId) wants "every booking whose startTime falls in
+  # Query.meetings' date-range filter (no personId) wants "every meeting whose startTime falls in
   # [from, to)" with no other partitioning dimension, and DynamoDB requires a hash key on every
   # GSI. A single constant partition is fine at this project's scale (see the README's cost
   # model); it would need bucketing by month or similar to spread load at real scale.
@@ -76,9 +76,9 @@ resource "aws_dynamodb_table" "bookings" {
     projection_type = "ALL"
   }
 
-  # Lets CreateBookingHandler's overlap check (roomHasOverlappingBooking) query "this room's
-  # bookings on this day" via begins_with(startTime, datePrefix) instead of scanning every
-  # booking ever created.
+  # Lets CreateMeetingHandler's overlap check (roomHasOverlappingMeeting) query "this room's
+  # meetings on this day" via begins_with(startTime, datePrefix) instead of scanning every
+  # meeting ever created.
   attribute {
     name = "roomId"
     type = "S"
@@ -92,17 +92,17 @@ resource "aws_dynamodb_table" "bookings" {
   }
 }
 
-# Denormalised join index resolving "which bookings is this person organiser of or an attendee
-# on" - attendeeIds is a list on the booking item, and DynamoDB keys must be scalars, so that
-# can't be answered with a GSI on the bookings table itself. One item is written here per
-# (booking, participant) pair - the organiser plus every attendee - alongside the booking item
-# itself, in a single TransactWriteItems call in CreateBookingHandler, so the two can never drift
-# under normal operation. The bookings table remains the source of truth; this table is a derived
-# index that room-booking-tools/database-repair's RebuildBookingParticipantsRepair can
+# Denormalised join index resolving "which meetings is this person organiser of or an attendee
+# on" - attendeeIds is a list on the meeting item, and DynamoDB keys must be scalars, so that
+# can't be answered with a GSI on the meetings table itself. One item is written here per
+# (meeting, participant) pair - the organiser plus every attendee - alongside the meeting item
+# itself, in a single TransactWriteItems call in CreateMeetingHandler, so the two can never drift
+# under normal operation. The meetings table remains the source of truth; this table is a derived
+# index that mootmaker-tools/database-repair's RebuildMeetingParticipantsRepair can
 # regenerate from it (needed once when this table is first introduced against an environment that
-# already has bookings, and as a safety net against any drift).
-resource "aws_dynamodb_table" "booking_participants" {
-  name         = "${local.resource_prefix}-booking-participants"
+# already has meetings, and as a safety net against any drift).
+resource "aws_dynamodb_table" "meeting_participants" {
+  name         = "${local.resource_prefix}-meeting-participants"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "personId"
   range_key    = "sortKey"
@@ -112,11 +112,11 @@ resource "aws_dynamodb_table" "booking_participants" {
     type = "S"
   }
 
-  # startTime + "#" + bookingId. LocalDateTime's ISO-8601 string form (with the canonical
-  # fixed-width formatting CreateBookingHandler stores rather than trusting client-supplied text -
+  # startTime + "#" + meetingId. LocalDateTime's ISO-8601 string form (with the canonical
+  # fixed-width formatting CreateMeetingHandler stores rather than trusting client-supplied text -
   # see its DATE_TIME_FORMAT) is lexicographically sortable, so a plain string range query on this
-  # sort key correctly answers "this person's bookings starting in [from, to)". Appending the
-  # bookingId keeps the key unique even if two of a person's bookings start at the same instant.
+  # sort key correctly answers "this person's meetings starting in [from, to)". Appending the
+  # meetingId keeps the key unique even if two of a person's meetings start at the same instant.
   attribute {
     name = "sortKey"
     type = "S"

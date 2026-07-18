@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and runs the /verify acceptance tests (mvn verify) against the deployed room-booking API.
+# Builds and runs the /verify acceptance tests (mvn verify) against the deployed mootmaker API.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 

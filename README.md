@@ -1,66 +1,66 @@
-# room-booking API
+# mootmaker API
 
-A project that is part of my [Claude Code exploration](https://github.com/geoffweatherall/room-booking).
+A project that is part of my [Claude Code exploration](https://github.com/geoffweatherall/mootmaker).
 
-A GraphQL API for booking meeting rooms. Clients can create rooms, people, and bookings, list each of them, and reset all stored data. The API is serverless: AWS AppSync fronts a set of Java Lambda functions backed by DynamoDB, and every component scales to zero so an idle deployment costs (almost) nothing.
+A GraphQL API for scheduling meetings in meeting rooms. Clients can create rooms, people, and meetings, list each of them, and reset all stored data. The API is serverless: AWS AppSync fronts a set of Java Lambda functions backed by DynamoDB, and every component scales to zero so an idle deployment costs (almost) nothing.
 
 ## Data model
 
-The GraphQL schema lives in [api/room-booking.graphql](api/room-booking.graphql). There are three entities:
+The GraphQL schema lives in [api/mootmaker.graphql](api/mootmaker.graphql). There are three entities:
 
 - **Room** — `id`, `name`, `capacity`. Capacity is the total number of people the room holds (organiser + attendees).
 - **Person** — `id`, `name`. Also has a backend-only `cognitoSub` attribute, not exposed over GraphQL: it's set to the Cognito user's `sub` for a Person created automatically on sign-up (see [Sign-up creates a linked Person](#sign-up-creates-a-linked-person)), and left unset for people added directly (e.g. guests with no login), so a future account-deletion flow can find and remove the Person linked to a deleted Cognito user.
-- **Booking** — `id`, `room`, `organiser` (a Person), `attendees` (list of Person), `subject`, `startTime`, `endTime`. `subject` must not be null or blank. Times are ISO-8601 local date-times with no time-zone offset (`java.time.LocalDateTime` semantics), e.g. `2026-07-01T14:30:00`, must fall on a 5-minute boundary, and `startTime`/`endTime` must fall on the same calendar date — a booking cannot span midnight (see [Validation](#validation)).
+- **Meeting** — `id`, `room`, `organiser` (a Person), `attendees` (list of Person), `subject`, `startTime`, `endTime`. `subject` must not be null or blank. Times are ISO-8601 local date-times with no time-zone offset (`java.time.LocalDateTime` semantics), e.g. `2026-07-01T14:30:00`, must fall on a 5-minute boundary, and `startTime`/`endTime` must fall on the same calendar date — a meeting cannot span midnight (see [Validation](#validation)).
 
 All `id` values are server-generated UUIDs; clients never supply ids on creation.
 
 ### Storage
 
-Rooms, people, and bookings each have their own DynamoDB table (`room-booking-rooms`, `room-booking-people`, `room-booking-bookings`), keyed by `id`. Bookings are stored **normalised**: a booking item holds only `roomId`, `organiserId`, and `attendeeIds`, not the room/person objects themselves, so later changes to a room or person are reflected immediately in every booking that references it. [ListBookingsHandler](impl/src/main/java/com/roombooking/handler/ListBookingsHandler.java) resolves those ids back into full `Room`/`Person` objects for the GraphQL response using [BatchLoader](impl/src/main/java/com/roombooking/dynamo/BatchLoader.java), which deduplicates ids across all bookings first (so a room or person referenced by many bookings is fetched once, via `BatchGetItem`) and fetches the rooms table and people table concurrently.
+Rooms, people, and meetings each have their own DynamoDB table (`mootmaker-rooms`, `mootmaker-people`, `mootmaker-meetings`), keyed by `id`. Meetings are stored **normalised**: a meeting item holds only `roomId`, `organiserId`, and `attendeeIds`, not the room/person objects themselves, so later changes to a room or person are reflected immediately in every meeting that references it. [ListMeetingsHandler](impl/src/main/java/com/mootmaker/handler/ListMeetingsHandler.java) resolves those ids back into full `Room`/`Person` objects for the GraphQL response using [BatchLoader](impl/src/main/java/com/mootmaker/dynamo/BatchLoader.java), which deduplicates ids across all meetings first (so a room or person referenced by many meetings is fetched once, via `BatchGetItem`) and fetches the rooms table and people table concurrently.
 
-`startTime`/`endTime` are stored in a canonical, always-19-character format (`BookingRecord.DATE_TIME_FORMAT`, e.g. `2026-07-01T09:00:00`) rather than the client's raw input text, so they sort correctly as plain strings — this is what makes the range queries below exact string comparisons rather than needing to parse every candidate item. It's also why a booking can't span midnight (see [Validation](#validation)): every booking is guaranteed to fall within a single calendar day, so "does this booking's date match" and "could this booking possibly overlap that window" are always answerable from `startTime` alone, with no cross-midnight case to account for.
+`startTime`/`endTime` are stored in a canonical, always-19-character format (`MeetingRecord.DATE_TIME_FORMAT`, e.g. `2026-07-01T09:00:00`) rather than the client's raw input text, so they sort correctly as plain strings — this is what makes the range queries below exact string comparisons rather than needing to parse every candidate item. It's also why a meeting can't span midnight (see [Validation](#validation)): every meeting is guaranteed to fall within a single calendar day, so "does this meeting's date match" and "could this meeting possibly overlap that window" are always answerable from `startTime` alone, with no cross-midnight case to account for.
 
-#### Querying bookings by date range and/or person, without scanning
+#### Querying meetings by date range and/or person, without scanning
 
-`Query.bookings(filter: BookingsFilter)` accepts an optional `fromStartTime`/`toEndTime` window and/or `personId` (matching organiser or attendee). `ListBookingsHandler` picks one of four DynamoDB access patterns depending on which filter fields are present, so it never reads more than the matching bookings:
+`Query.meetings(filter: MeetingsFilter)` accepts an optional `fromStartTime`/`toEndTime` window and/or `personId` (matching organiser or attendee). `ListMeetingsHandler` picks one of four DynamoDB access patterns depending on which filter fields are present, so it never reads more than the matching meetings:
 
 | Filter | Access pattern |
 |---|---|
-| none | `Scan` the bookings table — the caller genuinely wants everything, so this isn't a workaround |
-| date range only | `Query` the bookings table's `bucket-startTime-index` GSI (hash key is a constant `"ALL"`, range key `startTime` — there's no other partitioning dimension for "every booking's startTime") |
-| `personId` only | `Query` the `room-booking-booking-participants` table (see below), hash key `personId`, no range condition |
+| none | `Scan` the meetings table — the caller genuinely wants everything, so this isn't a workaround |
+| date range only | `Query` the meetings table's `bucket-startTime-index` GSI (hash key is a constant `"ALL"`, range key `startTime` — there's no other partitioning dimension for "every meeting's startTime") |
+| `personId` only | `Query` the `mootmaker-meeting-participants` table (see below), hash key `personId`, no range condition |
 | both | `Query` the same table with a range condition on its sort key |
 
-**Why `bucket-startTime-index`'s hash key is a constant.** The date-range-only query means "every booking in this window," not "every booking for this room" or "for this person" — there's no field to naturally shard by. DynamoDB requires every GSI to have a hash key, and a `Query` can only ever target one hash key value per call, so the only way to answer an arbitrary date range with a *single* `Query` (rather than, say, one call per room) is to give every item the same hash key value. That collapses the GSI to one logical partition, sorted entirely by the sort key `startTime` — functionally a sorted index over the whole table. The trade-off is that a single partition is capped by DynamoDB's per-partition limits (~3,000 RCU / 1,000 WCU / 10 GB) — fine at this project's scale, but bucketing by something coarser (e.g. year-month) would be the next step at real scale, at the cost of a query spanning a bucket boundary needing two `Query` calls merged in Java instead of one. Contrast with `roomId-startTime-index` below, whose hash key is `roomId`: the overlap check genuinely does have a partitioning dimension (it always asks "bookings for *this* room"), so it isn't subject to this limit at all.
+**Why `bucket-startTime-index`'s hash key is a constant.** The date-range-only query means "every meeting in this window," not "every meeting for this room" or "for this person" — there's no field to naturally shard by. DynamoDB requires every GSI to have a hash key, and a `Query` can only ever target one hash key value per call, so the only way to answer an arbitrary date range with a *single* `Query` (rather than, say, one call per room) is to give every item the same hash key value. That collapses the GSI to one logical partition, sorted entirely by the sort key `startTime` — functionally a sorted index over the whole table. The trade-off is that a single partition is capped by DynamoDB's per-partition limits (~3,000 RCU / 1,000 WCU / 10 GB) — fine at this project's scale, but bucketing by something coarser (e.g. year-month) would be the next step at real scale, at the cost of a query spanning a bucket boundary needing two `Query` calls merged in Java instead of one. Contrast with `roomId-startTime-index` below, whose hash key is `roomId`: the overlap check genuinely does have a partitioning dimension (it always asks "meetings for *this* room"), so it isn't subject to this limit at all.
 
-Both of the range-bounded queries (date-only, against `bucket-startTime-index`; `personId`+range, against booking-participants) bound the key condition at the start of `fromStartTime`'s calendar day rather than `fromStartTime` itself — a safe bound (not a heuristic) because a booking confined to one day can't still be running from a previous day. DynamoDB only allows a single condition on a sort key, so both ends of that bound go through one `BETWEEN` in the key condition rather than two separate comparators — and `BETWEEN` is inclusive on both ends, which the two queries handle differently:
+Both of the range-bounded queries (date-only, against `bucket-startTime-index`; `personId`+range, against meeting-participants) bound the key condition at the start of `fromStartTime`'s calendar day rather than `fromStartTime` itself — a safe bound (not a heuristic) because a meeting confined to one day can't still be running from a previous day. DynamoDB only allows a single condition on a sort key, so both ends of that bound go through one `BETWEEN` in the key condition rather than two separate comparators — and `BETWEEN` is inclusive on both ends, which the two queries handle differently:
 
 - **`bucket-startTime-index`**'s sort key *is* `startTime`, and DynamoDB rejects a `FilterExpression` that references an index's own key attributes — so the exclusive upper bound can't be expressed as `startTime < toEndTime` in a filter (that's not a hypothetical: it's exactly what an earlier version of this code tried, and DynamoDB rejected it with "Filter Expression can only contain non-primary key attributes"). `endTime` isn't part of this index's key schema, so it's fine in a `FilterExpression` (`endTime > fromStartTime`, for the low-end overlap check), but the upper bound has to be enforced in Java after the query returns, by dropping any item whose `startTime` exactly equals `toEndTime`.
-- **booking-participants**' sort key is the compound string `startTime + "#" + bookingId` (see below), so a bare `toEndTime` string as the `BETWEEN` upper bound is naturally exclusive there already — every real row's key is strictly longer, and therefore greater, than the bare boundary string — so no extra Java-side step is needed for that one.
+- **meeting-participants**' sort key is the compound string `startTime + "#" + meetingId` (see below), so a bare `toEndTime` string as the `BETWEEN` upper bound is naturally exclusive there already — every real row's key is strictly longer, and therefore greater, than the bare boundary string — so no extra Java-side step is needed for that one.
 
 (Separately: `bucket` is also a DynamoDB reserved word, so `#bucket = :bucket` needs an `ExpressionAttributeNames` alias — a literal `bucket = :bucket` is rejected the same way as the `startTime` filter above.)
 
 This still costs read capacity for the (small, date-bounded) candidates either check discards, but neither ever scans the whole table.
 
-`CreateBookingHandler`'s overlap check (`roomHasOverlappingBooking`) uses `roomId-startTime-index` with `begins_with(startTime, datePrefix)` instead: since two bookings for the same room can only possibly overlap if they share a date, this returns exactly that room's bookings for that one day, which are then checked for a real time overlap in Java.
+`CreateMeetingHandler`'s overlap check (`roomHasOverlappingMeeting`) uses `roomId-startTime-index` with `begins_with(startTime, datePrefix)` instead: since two meetings for the same room can only possibly overlap if they share a date, this returns exactly that room's meetings for that one day, which are then checked for a real time overlap in Java.
 
-#### The booking-participants table
+#### The meeting-participants table
 
-`attendeeIds` is a list on the booking item, and DynamoDB keys must be scalars, so "which bookings is this person organiser of or an attendee on" can't be answered with a GSI on the bookings table itself. `room-booking-booking-participants` (hash key `personId`, range key `sortKey` = `startTime` + `"#"` + `bookingId`) exists purely to answer that: one row per (booking, participant) pair — the organiser plus every attendee — written by [BookingParticipant](impl/src/main/java/com/roombooking/model/BookingParticipant.java). `CreateBookingHandler` writes a booking and all of its participant rows in a single `TransactWriteItems` call, so the two can never drift under normal operation.
+`attendeeIds` is a list on the meeting item, and DynamoDB keys must be scalars, so "which meetings is this person organiser of or an attendee on" can't be answered with a GSI on the meetings table itself. `mootmaker-meeting-participants` (hash key `personId`, range key `sortKey` = `startTime` + `"#"` + `meetingId`) exists purely to answer that: one row per (meeting, participant) pair — the organiser plus every attendee — written by [MeetingParticipant](impl/src/main/java/com/mootmaker/model/MeetingParticipant.java). `CreateMeetingHandler` writes a meeting and all of its participant rows in a single `TransactWriteItems` call, so the two can never drift under normal operation.
 
-The bookings table remains the source of truth; booking-participants is a **derived index**. [room-booking-tools/database-repair](https://github.com/geoffweatherall/room-booking-tools/tree/main/database-repair)'s `RebuildBookingParticipantsRepair` regenerates it from the bookings table — needed once when this table is introduced against an environment that already has bookings (existing bookings have no participant rows until then), and as a safety net against drift.
+The meetings table remains the source of truth; meeting-participants is a **derived index**. [mootmaker-tools/database-repair](https://github.com/geoffweatherall/mootmaker-tools/tree/main/database-repair)'s `RebuildMeetingParticipantsRepair` regenerates it from the meetings table — needed once when this table is introduced against an environment that already has meetings (existing meetings have no participant rows until then), and as a safety net against drift.
 
 ### API operations
 
 | Operation | Kind | Notes |
 |---|---|---|
 | `rooms`, `people` | Query | List all items of each type |
-| `bookings(filter: BookingsFilter)` | Query | Lists bookings, optionally narrowed by a `fromStartTime`/`toEndTime` window and/or `personId` (organiser or attendee) — see [Querying bookings by date range and/or person](#querying-bookings-by-date-range-andor-person-without-scanning) |
+| `meetings(filter: MeetingsFilter)` | Query | Lists meetings, optionally narrowed by a `fromStartTime`/`toEndTime` window and/or `personId` (organiser or attendee) — see [Querying meetings by date range and/or person](#querying-meetings-by-date-range-andor-person-without-scanning) |
 | `myPerson` | Query | Returns the `Person` linked to the caller's own Cognito account (via `identity.sub`), or `null` if none exists |
 | `createRoom(room)` | Mutation | Returns `CreateRoomResult` (room or validation errors) |
 | `createPerson(person)` | Mutation | Returns the created `Person`; no validation |
-| `createBooking(booking)` | Mutation | Returns `CreateBookingResult` (booking or validation errors) |
-| `reset` | Mutation | Deletes all rooms and bookings, and every person except those linked to a Cognito account (see [Reset and real user accounts](#reset-and-real-user-accounts)) |
+| `createMeeting(meeting)` | Mutation | Returns `CreateMeetingResult` (meeting or validation errors) |
+| `reset` | Mutation | Deletes all rooms and meetings, and every person except those linked to a Cognito account (see [Reset and real user accounts](#reset-and-real-user-accounts)) |
 
 Sample requests for every operation are in [api/requests.http](api/requests.http). To use them: deploy, run `source authenticate.sh <environment>`, open the file in VS Code (REST Client extension), and run the **"Get an access token"** request first — the other requests reference the returned token via `{{cognitoToken.response.body.$.access_token}}` and send it in the `Authorization` header. Tokens last 1 hour; re-run the token request when one expires.
 
@@ -72,14 +72,14 @@ Client ──HTTP/GraphQL──▶ AWS AppSync ──direct Lambda resolver─�
 
 - **AWS AppSync** hosts the GraphQL endpoint and validates requests against the schema. Authentication is a **Cognito user pool** — every request must carry a valid JWT (see [Authentication](#authentication)). Every query and mutation field has its own resolver.
 - Each resolver is a **direct Lambda resolver**: the request template forwards the whole AppSync context (`$ctx`) as the Lambda payload, and the response template returns the Lambda result as-is. There is no VTL mapping logic — all behaviour lives in Java.
-- **One Lambda function per GraphQL field** (8 in total: list-rooms, list-people, list-bookings, create-room, create-person, my-person, create-booking, reset), plus one more that isn't a GraphQL resolver at all: `post-confirmation-create-person`, a Cognito trigger (see below). All are built from a single shaded jar (`impl/target/room-booking-lambda.jar`), differing only in the handler class, e.g. `com.roombooking.handler.CreateBookingHandler`. Runtime is Java 25, 512 MB, 15 s timeout.
-- Handlers read the table names from environment variables (`ROOMS_TABLE_NAME`, `PEOPLE_TABLE_NAME`, `BOOKINGS_TABLE_NAME`, `BOOKING_PARTICIPANTS_TABLE_NAME`) set by Terraform, and use the AWS SDK v2 DynamoDB client.
+- **One Lambda function per GraphQL field** (8 in total: list-rooms, list-people, list-meetings, create-room, create-person, my-person, create-meeting, reset), plus one more that isn't a GraphQL resolver at all: `post-confirmation-create-person`, a Cognito trigger (see below). All are built from a single shaded jar (`impl/target/mootmaker-api.jar`), differing only in the handler class, e.g. `com.mootmaker.handler.CreateMeetingHandler`. Runtime is Java 25, 512 MB, 15 s timeout.
+- Handlers read the table names from environment variables (`ROOMS_TABLE_NAME`, `PEOPLE_TABLE_NAME`, `MEETINGS_TABLE_NAME`, `MEETING_PARTICIPANTS_TABLE_NAME`) set by Terraform, and use the AWS SDK v2 DynamoDB client.
 - **DynamoDB** stores the data in four on-demand (`PAY_PER_REQUEST`) tables (see [Storage](#storage)).
-- All resources are named with the `room-booking` prefix and created in `us-east-1` by default (see [deploy/terraform/variables.tf](deploy/terraform/variables.tf)).
+- All resources are named with the `mootmaker` prefix and created in `us-east-1` by default (see [deploy/terraform/variables.tf](deploy/terraform/variables.tf)).
 
 ## Sign-up creates a linked Person
 
-When a user confirms their email during sign-up (in the [room-booking-webapp](https://github.com/geoffweatherall/room-booking-webapp)), a Cognito **PostConfirmation Lambda trigger** ([PostConfirmationCreatePersonHandler](impl/src/main/java/com/roombooking/handler/PostConfirmationCreatePersonHandler.java), wired up in [cognito.tf](deploy/terraform/cognito.tf)) automatically creates a `Person` using the `name` the user entered on sign-up, and links it to the account via `cognitoSub`.
+When a user confirms their email during sign-up (in the [mootmaker-webapp](https://github.com/geoffweatherall/mootmaker-webapp)), a Cognito **PostConfirmation Lambda trigger** ([PostConfirmationCreatePersonHandler](impl/src/main/java/com/mootmaker/handler/PostConfirmationCreatePersonHandler.java), wired up in [cognito.tf](deploy/terraform/cognito.tf)) automatically creates a `Person` using the `name` the user entered on sign-up, and links it to the account via `cognitoSub`.
 
 This runs **after** email confirmation rather than before (a `PreSignUp` trigger would fire while the address is still unverified, risking orphaned Person records for abandoned or typo'd sign-ups) or from the browser (a client-side call after `confirmSignUp()` would leave a confirmed account with no Person if the tab closes or the network drops before that call completes). Cognito also retries `PostConfirmation` invocations on failure, so the handler is idempotent — it checks the `cognitoSub-index` GSI on the People table before writing, and skips creation if a Person already exists for that `sub`. Because Cognito treats an exception thrown here as a failure of the user's confirm-sign-up call (even though the account is already confirmed by that point), the handler logs and swallows any error rather than throwing, so a transient DynamoDB problem never blocks sign-up.
 
@@ -87,33 +87,33 @@ Note: the Terraform-managed e2e test user and demo user ([cognito.tf](deploy/ter
 
 ### Reset and real user accounts
 
-`Mutation.reset` ([ResetHandler](impl/src/main/java/com/roombooking/handler/ResetHandler.java)) always deletes every room and booking, but only deletes a person if its `cognitoSub` is unset. A real signed-up user's Person record is their only link back to their Cognito account (nothing recreates it after the fact — see above), so unconditionally wiping it on every reset would silently break their account the next time someone reset a shared, non-production environment. Guests added directly (no `cognitoSub`) have no such link and are always cleared, keeping `reset` useful for acceptance tests and tools like [room-booking-tools](https://github.com/geoffweatherall/room-booking-tools)' sample data generator without ever touching a real account — including the e2e test user (which has no Person at all, per the note above) and the demo user (which has a Person, but with `cognitoSub` set like any real account, so it's preserved by the same rule).
+`Mutation.reset` ([ResetHandler](impl/src/main/java/com/mootmaker/handler/ResetHandler.java)) always deletes every room and meeting, but only deletes a person if its `cognitoSub` is unset. A real signed-up user's Person record is their only link back to their Cognito account (nothing recreates it after the fact — see above), so unconditionally wiping it on every reset would silently break their account the next time someone reset a shared, non-production environment. Guests added directly (no `cognitoSub`) have no such link and are always cleared, keeping `reset` useful for acceptance tests and tools like [mootmaker-tools](https://github.com/geoffweatherall/mootmaker-tools)' sample data generator without ever touching a real account — including the e2e test user (which has no Person at all, per the note above) and the demo user (which has a Person, but with `cognitoSub` set like any real account, so it's preserved by the same rule).
 
 ### Displaying the signed-in user's name
 
-The webapp shows the signed-in user's name (see [MyPersonHandler](impl/src/main/java/com/roombooking/handler/MyPersonHandler.java)/`Query.myPerson`) by reading it live from the `Person` record rather than from the Cognito JWT, so a future "change my name" feature only has to write one place. The `cognitoSub-index` GSI has `ALL` projection (not `KEYS_ONLY`) specifically so this resolver can read the full item straight off the index in one request.
+The webapp shows the signed-in user's name (see [MyPersonHandler](impl/src/main/java/com/mootmaker/handler/MyPersonHandler.java)/`Query.myPerson`) by reading it live from the `Person` record rather than from the Cognito JWT, so a future "change my name" feature only has to write one place. The `cognitoSub-index` GSI has `ALL` projection (not `KEYS_ONLY`) specifically so this resolver can read the full item straight off the index in one request.
 
 This was chosen over customising the `name` claim in the ID token with a Pre Token Generation Lambda trigger. That approach would also work, but a token's claims are only refreshed on next sign-in/token-refresh (up to the token's ~1 hour lifetime), so a rename would appear stale for up to an hour; reading `myPerson` on demand is always current. It also avoids a subtler correctness gap: `ConfirmSignUp` invokes the `PostConfirmation` trigger synchronously and Cognito won't authenticate an unconfirmed user, so the trigger that creates the Person is guaranteed to have *run* before any sign-in — but not guaranteed to have *succeeded* (its DynamoDB write is deliberately swallowed on error, see above) or to be *visible yet* (DynamoDB GSI reads are only eventually consistent, and the webapp signs the user in immediately after confirming). A Pre Token Generation trigger racing that same window could bake a missing/stale name into a token for up to an hour; `myPerson` just returns `null` for that one moment and the webapp's existing email/JWT-name fallback covers it until the next query.
 
 ## Authentication
 
-All access to the API is authenticated by an **Amazon Cognito user pool** (`room-booking-users`, created by Terraform in [deploy/terraform/cognito.tf](deploy/terraform/cognito.tf)). Users sign in with an **email address and password**; Cognito emails a verification code on sign-up, and account recovery (forgot password) works the same way — a code emailed to the verified address. There is no API key.
+All access to the API is authenticated by an **Amazon Cognito user pool** (`mootmaker-users`, created by Terraform in [deploy/terraform/cognito.tf](deploy/terraform/cognito.tf)). Users sign in with an **email address and password**; Cognito emails a verification code on sign-up, and account recovery (forgot password) works the same way — a code emailed to the verified address. There is no API key.
 
 Every GraphQL request must carry a JWT issued by the user pool in the `Authorization` header (the raw token, no `Bearer` prefix). Enforcement happens in two layers:
 
 1. **AppSync** is configured with `AMAZON_COGNITO_USER_POOLS` authentication: it verifies the token's signature, issuer, and expiry against the user pool **before any resolver runs**, and returns HTTP 401 `UnauthorizedException` otherwise.
-2. **Every Lambda handler** re-checks, before running any logic, that the AppSync context it received contains an authenticated `identity` ([Identity.requireAuthenticated](impl/src/main/java/com/roombooking/handler/Identity.java)) — defence-in-depth in case the API is ever accidentally exposed without the authoriser.
+2. **Every Lambda handler** re-checks, before running any logic, that the AppSync context it received contains an authenticated `identity` ([Identity.requireAuthenticated](impl/src/main/java/com/mootmaker/handler/Identity.java)) — defence-in-depth in case the API is ever accidentally exposed without the authoriser.
 
 The user pool has two app clients (plus a hosted domain used only for the OAuth2 token endpoint):
 
 | App client | Kind | Used by |
 |---|---|---|
-| `room-booking-webapp` | Public (no secret), SRP auth flow | The [room-booking-webapp](https://github.com/geoffweatherall/room-booking-webapp) browser SPA: users sign up / sign in and their id token is sent with each GraphQL call |
-| `room-booking-acceptance-tests` | Confidential (client secret), OAuth2 `client_credentials` flow | The [verify/](verify/) acceptance tests and [api/requests.http](api/requests.http) |
+| `mootmaker-webapp` | Public (no secret), SRP auth flow | The [mootmaker-webapp](https://github.com/geoffweatherall/mootmaker-webapp) browser SPA: users sign up / sign in and their id token is sent with each GraphQL call |
+| `mootmaker-acceptance-tests` | Confidential (client secret), OAuth2 `client_credentials` flow | The [verify/](verify/) acceptance tests and [api/requests.http](api/requests.http) |
 
 ### Demo user
 
-This is a demo system rather than a real business, so every deployment — including a "production" one — includes a pre-confirmed, publicly-known demo user (`demo@room-booking.com`, Terraform outputs `demo_user_email` / `demo_user_password`, resources `aws_cognito_user.demo` / `random_password.demo_user` in [cognito.tf](deploy/terraform/cognito.tf)) that anyone can sign in as without creating their own account. Its password is randomly generated at deploy time (like the e2e test user's), but restricted to lowercase letters and digits only, so it's easy to read and type by hand when the webapp shows it on the home page. It is not a secret and its output is not marked `sensitive` — the whole point is that it's shown in the clear. (An earlier version used a fixed password, `demo1234`, which turned out to be on Google's list of known-compromised passwords; it's random now to avoid that.)
+This is a demo system rather than a real business, so every deployment — including a "production" one — includes a pre-confirmed, publicly-known demo user (`demo@mootmaker.com`, Terraform outputs `demo_user_email` / `demo_user_password`, resources `aws_cognito_user.demo` / `random_password.demo_user` in [cognito.tf](deploy/terraform/cognito.tf)) that anyone can sign in as without creating their own account. Its password is randomly generated at deploy time (like the e2e test user's), but restricted to lowercase letters and digits only, so it's easy to read and type by hand when the webapp shows it on the home page. It is not a secret and its output is not marked `sensitive` — the whole point is that it's shown in the clear. (An earlier version used a fixed password, `demo1234`, which turned out to be on Google's list of known-compromised passwords; it's random now to avoid that.)
 
 The user pool's password policy is set correspondingly loose to match: a minimum of 10 characters with a lowercase letter and a number, and no requirement for uppercase letters or symbols. A real product would want a stricter policy; this one is deliberately weakened so the demo password (and anyone else's) is easy to type.
 
@@ -121,18 +121,18 @@ The user pool's password policy is set correspondingly loose to match: a minimum
 
 Both projects' end-to-end tests run non-interactively (a dev shell or CI), so neither can prompt a human for credentials. They authenticate differently because they test different things:
 
-- **The API acceptance tests in [verify/](verify/) use machine-to-machine (M2M) auth** — the OAuth2 **client_credentials flow**. [GraphQlClient](verify/src/test/java/com/roombooking/verify/GraphQlClient.java) POSTs the test client's id and secret (read from the `COGNITO_TEST_CLIENT_ID` / `COGNITO_TEST_CLIENT_SECRET` environment variables, which `authenticate.sh` populates from Terraform outputs) to the user pool's token endpoint (`COGNITO_TOKEN_URL`) and receives a short-lived (1 h) JWT access token scoped to `room-booking-api/execute`, which AppSync accepts like any user token. One token is fetched per test run and shared by all test classes.
+- **The API acceptance tests in [verify/](verify/) use machine-to-machine (M2M) auth** — the OAuth2 **client_credentials flow**. [GraphQlClient](verify/src/test/java/com/mootmaker/verify/GraphQlClient.java) POSTs the test client's id and secret (read from the `COGNITO_TEST_CLIENT_ID` / `COGNITO_TEST_CLIENT_SECRET` environment variables, which `authenticate.sh` populates from Terraform outputs) to the user pool's token endpoint (`COGNITO_TOKEN_URL`) and receives a short-lived (1 h) JWT access token scoped to `mootmaker-api/execute`, which AppSync accepts like any user token. One token is fetched per test run and shared by all test classes.
 - **The webapp's Playwright tests sign in as a real user** — a Terraform-managed, pre-confirmed user `e2e-tests@example.com` (outputs `e2e_user_email` / `e2e_user_password`). A browser sign-in form inherently needs a user, and exercising the real sign-in UI is part of what those tests verify.
 
-[AuthenticationAcceptanceIT](verify/src/test/java/com/roombooking/verify/AuthenticationAcceptanceIT.java) proves the API is closed: requests with no token, a malformed token, or a forged JWT all get HTTP 401 and no data, while a client_credentials token succeeds.
+[AuthenticationAcceptanceIT](verify/src/test/java/com/mootmaker/verify/AuthenticationAcceptanceIT.java) proves the API is closed: requests with no token, a malformed token, or a forged JWT all get HTTP 401 and no data, while a client_credentials token succeeds.
 
 ## Directory structure
 
 | Path | Contents |
 |---|---|
-| [api/](api/) | GraphQL schema ([room-booking.graphql](api/room-booking.graphql)) and sample requests ([requests.http](api/requests.http)) |
-| [impl/](impl/) | Maven project with the Java Lambda handlers (`com.roombooking.handler.*`), model records (`com.roombooking.model.*`), and unit tests. Builds the shaded jar deployed to Lambda. |
-| [deploy/terraform/](deploy/terraform/) | Terraform for all AWS resources: AppSync API, resolvers and data sources ([appsync.tf](deploy/terraform/appsync.tf)), Cognito user pool, app clients, the e2e test user, and the public demo user ([cognito.tf](deploy/terraform/cognito.tf)), Lambda functions ([lambda.tf](deploy/terraform/lambda.tf)), DynamoDB tables ([dynamodb.tf](deploy/terraform/dynamodb.tf)), IAM roles ([iam.tf](deploy/terraform/iam.tf)), outputs (API URL, Cognito ids, test and demo user credentials). All resource names are prefixed with `<environment>-<project_name>` ([locals.tf](deploy/terraform/locals.tf)) so multiple environments can coexist in one AWS account. State is stored remotely in S3, one state file per environment ([backend.hcl](deploy/terraform/backend.hcl) — see the [room-booking-bootstrap-terraform](https://github.com/geoffweatherall/room-booking-bootstrap-terraform) README for how that bucket is set up, and the [room-booking project README](https://github.com/geoffweatherall/room-booking#multi-environment-deployments) for the multi-environment design). |
+| [api/](api/) | GraphQL schema ([mootmaker.graphql](api/mootmaker.graphql)) and sample requests ([requests.http](api/requests.http)) |
+| [impl/](impl/) | Maven project with the Java Lambda handlers (`com.mootmaker.handler.*`), model records (`com.mootmaker.model.*`), and unit tests. Builds the shaded jar deployed to Lambda. |
+| [deploy/terraform/](deploy/terraform/) | Terraform for all AWS resources: AppSync API, resolvers and data sources ([appsync.tf](deploy/terraform/appsync.tf)), Cognito user pool, app clients, the e2e test user, and the public demo user ([cognito.tf](deploy/terraform/cognito.tf)), Lambda functions ([lambda.tf](deploy/terraform/lambda.tf)), DynamoDB tables ([dynamodb.tf](deploy/terraform/dynamodb.tf)), IAM roles ([iam.tf](deploy/terraform/iam.tf)), outputs (API URL, Cognito ids, test and demo user credentials). All resource names are prefixed with `<environment>-<project_name>` ([locals.tf](deploy/terraform/locals.tf)) so multiple environments can coexist in one AWS account. State is stored remotely in S3, one state file per environment ([backend.hcl](deploy/terraform/backend.hcl) — see the [mootmaker-bootstrap-terraform](https://github.com/geoffweatherall/mootmaker-bootstrap-terraform) README for how that bucket is set up, and the [mootmaker project README](https://github.com/geoffweatherall/mootmaker#multi-environment-deployments) for the multi-environment design). |
 | [verify/](verify/) | Maven project with JUnit acceptance tests (`*IT.java`, run by failsafe) that exercise the **deployed** API over HTTP. |
 
 ### Bash scripts
@@ -153,7 +153,7 @@ Prerequisites: Java 25, Maven, Terraform ≥ 1.10, and AWS credentials configure
 Every deploy/undeploy/authenticate/verify script takes an **environment** name
 (e.g. `test`, `production`, or your own name for a personal sandbox) so
 multiple independent copies of the API can run in the same AWS account at
-once — see the [room-booking project README](https://github.com/geoffweatherall/room-booking#multi-environment-deployments)
+once — see the [mootmaker project README](https://github.com/geoffweatherall/mootmaker#multi-environment-deployments)
 for the full multi-environment how-to and the reasoning behind it.
 
 ```bash
@@ -186,36 +186,36 @@ Every component is configured to scale to zero, so a deployed-but-idle API costs
 
 There are no fixed-price resources (no provisioned DynamoDB capacity, no EC2/containers, no NAT gateways, no provisioned Lambda concurrency). Costs scale linearly with API call volume: each GraphQL call is one AppSync request, one Lambda invocation, and one or more DynamoDB operations.
 
-One scaling caveat: `reset` and an unfiltered `bookings` query still **scan** whole tables rather than using an index, so their DynamoDB read cost grows with total stored data, not just with call volume. That's an intentional trade-off for `reset` (it needs to enumerate literally everything to delete it) and for an unfiltered `bookings` call (it's asking for literally everything), but not for `createBooking`'s overlap check or a filtered `bookings` query — both of those go through the `bucket-startTime-index`/`roomId-startTime-index` GSIs or the booking-participants table instead (see [Storage](#storage)), so their cost is bounded by the size of the matching result, not total stored data.
+One scaling caveat: `reset` and an unfiltered `meetings` query still **scan** whole tables rather than using an index, so their DynamoDB read cost grows with total stored data, not just with call volume. That's an intentional trade-off for `reset` (it needs to enumerate literally everything to delete it) and for an unfiltered `meetings` call (it's asking for literally everything), but not for `createMeeting`'s overlap check or a filtered `meetings` query — both of those go through the `bucket-startTime-index`/`roomId-startTime-index` GSIs or the meeting-participants table instead (see [Storage](#storage)), so their cost is bounded by the size of the matching result, not total stored data.
 
-`createBooking` writes cost slightly more than one write request unit now: it writes the booking plus one booking-participants row per organiser/attendee in a single `TransactWriteItems` call, which DynamoDB bills at 2× the normal per-item write cost. For a typical small meeting (a couple of attendees) that's still a handful of write request units — a fraction of a cent even at thousands of bookings/month, negligible next to Lambda/AppSync costs.
+`createMeeting` writes cost slightly more than one write request unit now: it writes the meeting plus one meeting-participants row per organiser/attendee in a single `TransactWriteItems` call, which DynamoDB bills at 2× the normal per-item write cost. For a typical small meeting (a couple of attendees) that's still a handful of write request units — a fraction of a cent even at thousands of meetings/month, negligible next to Lambda/AppSync costs.
 
 ## Validation
 
 ### How it works
 
-Validation is implemented entirely in the Java Lambda handlers (not in AppSync/VTL, apart from the type/nullability checks the GraphQL schema itself enforces). The create mutations for rooms and bookings never throw GraphQL errors for rule violations; instead they return a **structured result object**:
+Validation is implemented entirely in the Java Lambda handlers (not in AppSync/VTL, apart from the type/nullability checks the GraphQL schema itself enforces). The create mutations for rooms and meetings never throw GraphQL errors for rule violations; instead they return a **structured result object**:
 
 - `CreateRoomResult { room, errors: [RoomError!]! }`
-- `CreateBookingResult { booking, errors: [BookingError!]! }`
+- `CreateMeetingResult { meeting, errors: [MeetingError!]! }`
 
 On success the entity field is populated and `errors` is empty. On failure the entity field is `null` and `errors` contains **one enum entry per rule broken** — the handlers collect all violations rather than stopping at the first, so a client gets the complete list in one round trip. Nothing is written to DynamoDB unless validation passes.
 
 ### Rules
 
-`createRoom` ([CreateRoomHandler](impl/src/main/java/com/roombooking/handler/CreateRoomHandler.java)):
+`createRoom` ([CreateRoomHandler](impl/src/main/java/com/mootmaker/handler/CreateRoomHandler.java)):
 
 | Error | Rule |
 |---|---|
 | `NameRequired` | `name` must not be null or blank |
 | `CapacityTooLow` | `capacity` must be ≥ 2 |
 
-`createBooking` ([CreateBookingHandler](impl/src/main/java/com/roombooking/handler/CreateBookingHandler.java)):
+`createMeeting` ([CreateMeetingHandler](impl/src/main/java/com/mootmaker/handler/CreateMeetingHandler.java)):
 
 | Error | Rule |
 |---|---|
 | `StartMissaligned` / `EndMissaligned` | Start/end time must parse as an ISO-8601 local date-time and fall exactly on a 5-minute boundary (no seconds/nanos) |
-| `SpansMultipleDays` | `startTime` and `endTime` must fall on the same calendar date — a booking cannot span midnight |
+| `SpansMultipleDays` | `startTime` and `endTime` must fall on the same calendar date — a meeting cannot span midnight |
 | `RoomRequired` | `roomId` must not be blank |
 | `RoomNotFound` | `roomId` must refer to an existing room |
 | `OrganiserRequired` | `organiserId` must not be blank |
@@ -223,7 +223,7 @@ On success the entity field is populated and `errors` is empty. On failure the e
 | `AttendeeNotFound` | Every id in `attendeeIds` must refer to an existing person (one error per missing attendee) |
 | `SubjectRequired` | `subject` must not be null or blank |
 | `InsufficientCapacity` | Room capacity must be ≥ 1 + number of attendees (the organiser counts) |
-| `TimeRangeUnavailable` | The room must have no existing booking overlapping the requested `[startTime, endTime)` range (touching end-to-start is allowed) |
+| `TimeRangeUnavailable` | The room must have no existing meeting overlapping the requested `[startTime, endTime)` range (touching end-to-start is allowed) |
 
 `createPerson` performs no validation beyond the schema's non-null `name`. The acceptance tests in [verify/](verify/) cover these rules end-to-end against the deployed API.
 

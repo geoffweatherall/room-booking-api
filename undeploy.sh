@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Destroys all AWS resources created by deploy.sh for the given environment:
 # the AppSync API, all Lambda functions, and the DynamoDB tables (including
-# any stored rooms/people/bookings data).
+# any stored rooms/people/meetings data).
 #
 # NOTE: this is DESTRUCTIVE and IRREVERSIBLE. Terraform will prompt for interactive confirmation
 # before deleting anything; this script intentionally does not pass -auto-approve.
@@ -14,9 +14,9 @@ if [[ -z "${environment}" ]]; then
   exit 1
 fi
 
-echo "Undeploying room-booking-api environment '${environment}'..."
+echo "Undeploying mootmaker-api environment '${environment}'..."
 
 export TF_DATA_DIR=".terraform-${environment}"
 
-terraform -chdir=deploy/terraform init -backend-config=backend.hcl -backend-config="key=${environment}/room-booking-api/terraform.tfstate"
+terraform -chdir=deploy/terraform init -backend-config=backend.hcl -backend-config="key=${environment}/mootmaker-api/terraform.tfstate"
 terraform -chdir=deploy/terraform destroy -var="environment=${environment}"

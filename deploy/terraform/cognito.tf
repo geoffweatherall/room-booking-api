@@ -47,7 +47,7 @@ resource "aws_lambda_permission" "cognito_invoke_post_confirmation" {
   source_arn    = aws_cognito_user_pool.this.arn
 }
 
-# Public (no secret) client used by the room-booking-webapp browser SPA.
+# Public (no secret) client used by the mootmaker-webapp browser SPA.
 resource "aws_cognito_user_pool_client" "webapp" {
   name         = "${local.resource_prefix}-webapp"
   user_pool_id = aws_cognito_user_pool.this.id
@@ -76,7 +76,7 @@ resource "aws_cognito_resource_server" "api" {
 
   scope {
     scope_name        = "execute"
-    scope_description = "Full access to the room-booking GraphQL API"
+    scope_description = "Full access to the mootmaker GraphQL API"
   }
 }
 
@@ -133,17 +133,17 @@ resource "random_password" "demo_user" {
 
 # Pre-confirmed, publicly-known demo user: this is a demo system rather than a real business, so
 # anyone can sign in as this user - no sign-up needed - to try out the app. The webapp's home page
-# fetches these credentials at deploy time (see room-booking-webapp's deploy.sh) and displays them
+# fetches these credentials at deploy time (see mootmaker-webapp's deploy.sh) and displays them
 # to signed-out visitors, offering a one-click sign-in. Deliberately NOT gated by environment name
 # (e.g. unlike reset/sample-data-generator) - this demo user is meant to exist even in a
 # "production" deployment, since making the app easy to try is the point.
 resource "aws_cognito_user" "demo" {
   user_pool_id = aws_cognito_user_pool.this.id
-  username     = "demo@room-booking.com"
+  username     = "demo@mootmaker.com"
   password     = random_password.demo_user.result
 
   attributes = {
-    email          = "demo@room-booking.com"
+    email          = "demo@mootmaker.com"
     email_verified = "true"
   }
 }

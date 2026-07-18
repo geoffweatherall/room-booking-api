@@ -1,7 +1,7 @@
 resource "aws_appsync_graphql_api" "this" {
   name                = "${local.resource_prefix}-api"
   authentication_type = "AMAZON_COGNITO_USER_POOLS"
-  schema              = file("${path.module}/../../api/room-booking.graphql")
+  schema              = file("${path.module}/../../api/mootmaker.graphql")
 
   user_pool_config {
     user_pool_id   = aws_cognito_user_pool.this.id
@@ -65,25 +65,25 @@ resource "aws_appsync_datasource" "my_person" {
   }
 }
 
-resource "aws_appsync_datasource" "list_bookings" {
+resource "aws_appsync_datasource" "list_meetings" {
   api_id           = aws_appsync_graphql_api.this.id
-  name             = "ListBookingsDataSource"
+  name             = "ListMeetingsDataSource"
   type             = "AWS_LAMBDA"
   service_role_arn = aws_iam_role.appsync_lambda_invoke.arn
 
   lambda_config {
-    function_arn = aws_lambda_function.list_bookings.arn
+    function_arn = aws_lambda_function.list_meetings.arn
   }
 }
 
-resource "aws_appsync_datasource" "create_booking" {
+resource "aws_appsync_datasource" "create_meeting" {
   api_id           = aws_appsync_graphql_api.this.id
-  name             = "CreateBookingDataSource"
+  name             = "CreateMeetingDataSource"
   type             = "AWS_LAMBDA"
   service_role_arn = aws_iam_role.appsync_lambda_invoke.arn
 
   lambda_config {
-    function_arn = aws_lambda_function.create_booking.arn
+    function_arn = aws_lambda_function.create_meeting.arn
   }
 }
 
@@ -148,20 +148,20 @@ resource "aws_appsync_resolver" "my_person" {
   response_template = local.direct_lambda_response_template
 }
 
-resource "aws_appsync_resolver" "bookings" {
+resource "aws_appsync_resolver" "meetings" {
   api_id            = aws_appsync_graphql_api.this.id
   type              = "Query"
-  field             = "bookings"
-  data_source       = aws_appsync_datasource.list_bookings.name
+  field             = "meetings"
+  data_source       = aws_appsync_datasource.list_meetings.name
   request_template  = local.direct_lambda_request_template
   response_template = local.direct_lambda_response_template
 }
 
-resource "aws_appsync_resolver" "create_booking" {
+resource "aws_appsync_resolver" "create_meeting" {
   api_id            = aws_appsync_graphql_api.this.id
   type              = "Mutation"
-  field             = "createBooking"
-  data_source       = aws_appsync_datasource.create_booking.name
+  field             = "createMeeting"
+  data_source       = aws_appsync_datasource.create_meeting.name
   request_template  = local.direct_lambda_request_template
   response_template = local.direct_lambda_response_template
 }

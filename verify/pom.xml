@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.roombooking</groupId>
-  <artifactId>room-booking-acceptance-tests</artifactId>
+  <groupId>com.mootmaker</groupId>
+  <artifactId>mootmaker-api-acceptance-tests</artifactId>
   <version>1.0.0</version>
   <packaging>jar</packaging>
 

@@ -1,4 +1,4 @@
-# room-booking
+# mootmaker
 
 This GraphQL API allows for people to book rooms.
 

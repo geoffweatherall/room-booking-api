@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds the Lambda jar and deploys the room-booking API to AWS via Terraform,
+# Builds the Lambda jar and deploys the mootmaker API to AWS via Terraform,
 # into the given environment (e.g. "test", "production", or a developer's own
-# name for a personal sandbox - see the room-booking project README for the
+# name for a personal sandbox - see the mootmaker project README for the
 # full multi-environment how-to).
 # NOTE: `terraform apply -auto-approve` creates real AWS resources in whatever
 # account/credentials are active. Run this deliberately, not from automation.
@@ -18,7 +18,7 @@ if [[ ! "${environment}" =~ ^[a-z0-9-]+$ ]]; then
   exit 1
 fi
 
-echo "Deploying room-booking-api to '${environment}'..."
+echo "Deploying mootmaker-api to '${environment}'..."
 
 # Isolates this environment's Terraform provider cache/backend pointer from
 # other environments, so deploying "test" and "production" from the same
@@ -27,5 +27,5 @@ export TF_DATA_DIR=".terraform-${environment}"
 
 mvn -f impl/pom.xml clean package
 
-terraform -chdir=deploy/terraform init -backend-config=backend.hcl -backend-config="key=${environment}/room-booking-api/terraform.tfstate"
+terraform -chdir=deploy/terraform init -backend-config=backend.hcl -backend-config="key=${environment}/mootmaker-api/terraform.tfstate"
 terraform -chdir=deploy/terraform apply -auto-approve -var="environment=${environment}"
