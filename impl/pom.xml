@@ -43,6 +43,24 @@
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>dynamodb</artifactId>
+      <exclusions>
+        <!--
+          Both are alternative HTTP client implementations dynamodb pulls in transitively -
+          apache5-client is a sync alternative to url-connection-client below (and, left on the
+          classpath, the SDK's default resolution silently prefers it over url-connection-client,
+          which is not what this project wants), netty-nio-client is an async client this project
+          never uses (only the sync DynamoDbClient appears anywhere in impl/src). Excluding both
+          cuts ~6.6 MB of unused classes from the shaded jar.
+        -->
+        <exclusion>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>apache5-client</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>netty-nio-client</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
@@ -52,7 +70,10 @@
       The AWS SDK pulls in slf4j-api transitively (via sdk-core) with no binding on the classpath,
       which prints "Failed to load class StaticLoggerBinder" at cold start. Declaring slf4j-api
       directly pins the whole build to one (current) version instead of the SDK's older transitive
-      one, and logback-classic supplies the actual binding so SLF4J has somewhere to send logs.
+      one. slf4j-simple supplies the actual binding - logback-classic did the same job at ~930 KB
+      (its file rotation, async appenders, and layout engine are all wasted here: Lambda captures
+      stdout/stderr into CloudWatch Logs directly, there's no file to rotate), vs. slf4j-simple's
+      ~15 KB. See simplelogger.properties for the format configuration replacing logback.xml.
     -->
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -60,9 +81,9 @@
       <version>2.0.18</version>
     </dependency>
     <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.5.37</version>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.18</version>
     </dependency>
 
     <dependency>
